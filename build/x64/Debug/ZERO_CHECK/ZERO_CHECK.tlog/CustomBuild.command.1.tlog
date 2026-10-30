@@ -1,0 +1,10 @@
+^D:\УНИВЕР\СТАТЬИ\OPTOTECH2026\BUILD\CMAKEFILES\6BD392E9344DB09E873484F20118D9F1\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SD:/универ/статьи/optotech2026 -BD:/универ/статьи/optotech2026/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/универ/статьи/optotech2026/build/optotech.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

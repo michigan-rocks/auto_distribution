@@ -1,0 +1,12 @@
+build/
+**/build/
+CMakeFiles/
+**/CMakeFiles/
+CMakeCache.txt
+**/CMakeCache.txt
+CMakeFiles*
+*.vcxproj*
+*.sln
+.git/
+.vs/
+*.user

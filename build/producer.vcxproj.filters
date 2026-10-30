@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\универ\статьи\optotech2026\producer\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\универ\статьи\optotech2026\producer\src\task.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\универ\статьи\optotech2026\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="D:\vcpkg\installed\x64-windows\share\boost-1.92.0\assert\boost_assert.natvis" />
+    <Natvis Include="D:\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{E7DF722F-D88F-32BB-8EF9-8116CE7BE61F}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

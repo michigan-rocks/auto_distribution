@@ -1,0 +1,65 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: user
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - monitoring
+
+  producer:
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
+    container_name: producer
+    restart: unless-stopped
+    depends_on:
+      - rabbitmq
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: user
+    networks:
+      - monitoring
+
+  # prometheus:
+  #   image: prom/prometheus:v3.8.0
+  #   container_name: prometheus
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./pkg/monitoring/prometeus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #   networks:
+  #     - monitoring
+
+  # grafana:
+  #   image: grafana/grafana:12.2.0
+  #   container_name: grafana
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - prometheus
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./pkg/monitoring/graphana/datasourses.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+  #   networks:
+  #     - monitoring
+
+networks:
+  monitoring:
+
+volumes:
+  grafana_data:
+  prometheus_data:
+  rabbitmq_data:

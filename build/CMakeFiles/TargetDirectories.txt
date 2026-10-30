@@ -1,0 +1,3 @@
+D:/универ/статьи/optotech2026/build/CMakeFiles/producer.dir
+D:/универ/статьи/optotech2026/build/CMakeFiles/ALL_BUILD.dir
+D:/универ/статьи/optotech2026/build/CMakeFiles/ZERO_CHECK.dir
