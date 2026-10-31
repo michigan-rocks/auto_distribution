@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 
+option(BUILD_PRODUCER "Build Producer" ON)
+option(BUILD_INTERNAL "Build Dispatcher" ON)
+
 project(optotech LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -19,25 +22,46 @@ endif()
 
 find_package(rabbitmq-c CONFIG REQUIRED)
 find_package(Boost CONFIG REQUIRED COMPONENTS chrono system)
-find_package(nlohmann_json CONFIG REQUIRED)
 
 message(STATUS "SimpleAmqpClient include: ${SIMPLE_AMQP_INCLUDE_DIR}")
 message(STATUS "SimpleAmqpClient library: ${SIMPLE_AMQP_LIBRARY}")
 
 ##продюсер
-add_executable(producer
-    producer/src/main.cpp
-    producer/src/task.cpp
-)
 
-target_include_directories(producer PRIVATE
-    "${SIMPLE_AMQP_INCLUDE_DIR}"
-)
+if(BUILD_PRODUCER)
+    find_package(nlohmann_json CONFIG REQUIRED)
 
-target_link_libraries(producer PRIVATE
-    "${SIMPLE_AMQP_LIBRARY}"
-    rabbitmq::rabbitmq
-    Boost::chrono
-    Boost::system
-    nlohmann_json::nlohmann_json
-)
+    add_executable(producer
+        producer/src/main.cpp
+        producer/src/task.cpp
+    )
+
+    target_include_directories(producer PRIVATE
+        "${SIMPLE_AMQP_INCLUDE_DIR}"
+    )
+
+    target_link_libraries(producer PRIVATE
+        "${SIMPLE_AMQP_LIBRARY}"
+        rabbitmq::rabbitmq
+        Boost::chrono
+        Boost::system
+        nlohmann_json::nlohmann_json
+    )
+endif()
+
+if(BUILD_INTERNAL)
+    add_executable(internal
+        internal/src/main.cpp
+    )
+
+    target_include_directories(internal PRIVATE
+        "${SIMPLE_AMQP_INCLUDE_DIR}"
+    )
+
+    target_link_libraries(internal PRIVATE
+        "${SIMPLE_AMQP_LIBRARY}"
+        rabbitmq::rabbitmq
+        Boost::chrono
+        Boost::system
+    )
+endif()
