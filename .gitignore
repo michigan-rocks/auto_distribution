@@ -1,2 +1,9 @@
 .env
 debug.log
+
+# Visual Studio
+.vs/
+[Bb]in/
+[Oo]bj/
+x64/
+*.user

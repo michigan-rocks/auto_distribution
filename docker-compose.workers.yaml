@@ -1,0 +1,42 @@
+# Add to the existing docker-compose.yaml with -f docker-compose.workers.yaml.
+x-worker-common: &worker-common
+  build:
+    context: .
+    dockerfile: workers/Dockerfile
+  image: adaptive-task-worker:local
+  restart: unless-stopped
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+  networks:
+    - monitoring
+
+x-worker-environment: &worker-environment
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: user
+  RABBITMQ_PASSWORD: user
+  WORKER_MODE: adaptive
+  WORKER_SEND_FULL_RESULT: "true"
+
+services:
+  worker1:
+    <<: *worker-common
+    environment:
+      <<: *worker-environment
+      WORKER_ID: "1"
+      SIMULATED_DELAY_MS_AT_400: "0"
+
+  worker2:
+    <<: *worker-common
+    environment:
+      <<: *worker-environment
+      WORKER_ID: "2"
+      SIMULATED_DELAY_MS_AT_400: "250"
+
+  worker3:
+    <<: *worker-common
+    environment:
+      <<: *worker-environment
+      WORKER_ID: "3"
+      SIMULATED_DELAY_MS_AT_400: "600"

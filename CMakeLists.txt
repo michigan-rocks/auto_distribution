@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 option(BUILD_PRODUCER "Build Producer" ON)
 option(BUILD_INTERNAL "Build Dispatcher" ON)
+option(BUILD_WORKERS "Build Worker" ON)
 
 project(optotech LANGUAGES CXX)
 
@@ -63,5 +64,25 @@ if(BUILD_INTERNAL)
         rabbitmq::rabbitmq
         Boost::chrono
         Boost::system
+    )
+endif()
+
+if(BUILD_WORKERS)
+    find_package(nlohmann_json CONFIG REQUIRED)
+
+    add_executable(worker
+        workers/src/main.cpp
+    )
+
+    target_include_directories(worker PRIVATE
+        "${SIMPLE_AMQP_INCLUDE_DIR}"
+    )
+
+    target_link_libraries(worker PRIVATE
+        "${SIMPLE_AMQP_LIBRARY}"
+        rabbitmq::rabbitmq
+        Boost::chrono
+        Boost::system
+        nlohmann_json::nlohmann_json
     )
 endif()
