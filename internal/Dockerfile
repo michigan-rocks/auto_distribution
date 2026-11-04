@@ -23,7 +23,8 @@ RUN /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
 # Только RabbitMQ-клиент и его зависимости
 RUN /opt/vcpkg/vcpkg install \
-    simpleamqpclient:x64-linux-dynamic
+    simpleamqpclient:x64-linux-dynamic \
+    nlohmann-json:x64-linux-dynamic
 
 WORKDIR /src
 COPY . .
@@ -34,6 +35,7 @@ RUN cmake -S . -B build \
         -DVCPKG_TARGET_TRIPLET=x64-linux-dynamic \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_PRODUCER=OFF \
+        -DBUILD_WORKERS=OFF \
     && cmake --build build --target internal -j"$(nproc)"
 
 FROM ubuntu:24.04 AS runtime

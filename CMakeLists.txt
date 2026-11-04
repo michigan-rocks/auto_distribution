@@ -6,6 +6,8 @@ option(BUILD_WORKERS "Build Worker" ON)
 
 project(optotech LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -39,6 +41,7 @@ if(BUILD_PRODUCER)
 
     target_include_directories(producer PRIVATE
         "${SIMPLE_AMQP_INCLUDE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
     )
 
     target_link_libraries(producer PRIVATE
@@ -51,12 +54,15 @@ if(BUILD_PRODUCER)
 endif()
 
 if(BUILD_INTERNAL)
+    find_package(nlohmann_json CONFIG REQUIRED)
+
     add_executable(internal
         internal/src/main.cpp
     )
 
     target_include_directories(internal PRIVATE
         "${SIMPLE_AMQP_INCLUDE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
     )
 
     target_link_libraries(internal PRIVATE
@@ -64,6 +70,7 @@ if(BUILD_INTERNAL)
         rabbitmq::rabbitmq
         Boost::chrono
         Boost::system
+        nlohmann_json::nlohmann_json
     )
 endif()
 
@@ -76,6 +83,7 @@ if(BUILD_WORKERS)
 
     target_include_directories(worker PRIVATE
         "${SIMPLE_AMQP_INCLUDE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
     )
 
     target_link_libraries(worker PRIVATE
@@ -85,4 +93,15 @@ if(BUILD_WORKERS)
         Boost::system
         nlohmann_json::nlohmann_json
     )
+endif()
+
+if(BUILD_INTERNAL AND BUILD_TESTING)
+    add_executable(test_adaptive_scheduler
+        internal/tests/test_adaptive_scheduler.cpp
+    )
+    target_include_directories(test_adaptive_scheduler PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/internal/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
+    )
+    add_test(NAME adaptive_scheduler COMMAND test_adaptive_scheduler)
 endif()

@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
+#include "queue_names.hpp"
 #include <SimpleAmqpClient/SimpleAmqpClient.h>
 #include <string>
 #include <thread>
@@ -31,7 +32,7 @@ auto connectRabbitMQ() {
 
 void createQueue(AmqpClient::Channel::ptr_t &channel) {
     channel->DeclareQueue(
-        "tasks.incoming",
+        queue_names::incoming_tasks,
         false, // passive
         true,  // durable
         false, // exclusive
@@ -46,7 +47,7 @@ void publish(const std::string& body, AmqpClient::Channel::ptr_t& channel) {
 
     channel->BasicPublish(
         "",               // Default Exchange
-        "tasks.incoming", // Routing Key
+        queue_names::incoming_tasks, // Routing Key
         message
     );
 }

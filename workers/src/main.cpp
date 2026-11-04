@@ -1,4 +1,5 @@
 #include "matrix.hpp"
+#include "queue_names.hpp"
 
 #include <SimpleAmqpClient/SimpleAmqpClient.h>
 #include <nlohmann/json.hpp>
@@ -185,9 +186,9 @@ int main() {
             throw std::invalid_argument("WORKER_MODE must be adaptive or baseline");
         }
 
-        const std::string input_queue =
-            mode == "baseline" ? "tasks.shared" :
-            "worker." + std::to_string(worker_id);
+        const std::string input_queue = mode == "baseline"
+            ? queue_names::shared_tasks
+            : queue_names::worker_tasks(worker_id);
         const std::string host = env("RABBITMQ_HOST", "localhost");
         const std::string user = env("RABBITMQ_USER", "user");
         const std::string password = env("RABBITMQ_PASSWORD", "user");
@@ -197,12 +198,12 @@ int main() {
         auto channel = AmqpClient::Channel::Create(host, port, user, password);
 
         declareDurableQueue(channel, input_queue);
-        declareDurableQueue(channel, "workers.calibration");
-        declareDurableQueue(channel, "tasks.completed");
-        declareDurableQueue(channel, "tasks.results");
+        declareDurableQueue(channel, queue_names::worker_calibration);
+        declareDurableQueue(channel, queue_names::completed_tasks);
+        declareDurableQueue(channel, queue_names::task_results);
 
         const double average_ms = calibrate(delay_ms_at_400);
-        publishJson(channel, "workers.calibration", Json{
+        publishJson(channel, queue_names::worker_calibration, Json{
             {"type", "calibration"}, {"worker_id", worker_id},
             {"matrix_size", 400}, {"average_ms", average_ms}
         });
@@ -234,8 +235,8 @@ int main() {
             if (send_full_result) {
                 result_event["matrix_result"] = std::move(result.matrix);
             }
-            publishJson(channel, "tasks.results", result_event);
-            publishJson(channel, "tasks.completed", Json{
+            publishJson(channel, queue_names::task_results, result_event);
+            publishJson(channel, queue_names::completed_tasks, Json{
                 {"type", "completed"}, {"task_id", task.id},
                 {"worker_id", worker_id}, {"matrix_size", task.size},
                 {"elapsed_ms", result.elapsed_ms},
