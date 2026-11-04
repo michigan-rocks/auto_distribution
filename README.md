@@ -16,7 +16,7 @@ Our hypothesis is that **adaptive scheduling based on estimated task cost, worke
 
 The proposed system has three types of C++ applications:
 
-- **Producer:** generates matrix-multiplication tasks with randomized dimensions and configurable arrival intervals.
+- **Producer:** replays a fixed pool of matrix tasks and records the time to complete the entire pool.
 - **Dispatcher:** consumes incoming tasks, selects a worker using a scheduling strategy, and routes tasks through RabbitMQ.
 - **Workers:** execute actual matrix multiplications and report completion times and other measurements.
 
@@ -73,7 +73,7 @@ Example message:
 }
 ```
 
-Planned workload profiles include uniform task sizes, a mix of small and large matrices, burst traffic, and sustained overload. A fixed random seed enables repeatable task sequences across scheduling strategies.
+The checked-in `workloads/default.jsonl` contains 1000 tasks with sizes from 100 to 500, generated once with seed 2026. Each line fixes the task ID, matrix size and matrix seed. Workers generate identical matrix values from that seed using `std::mt19937`. The file and task order are reused for every strategy.
 
 ## Metrics and Evaluation
 
@@ -102,18 +102,51 @@ Experiments will be repeated with comparable task sequences and worker configura
 
 ## Running the Project
 
-Run one strategy at a time. All three workers run in each mode:
+For comparable experiments on Windows, run one mode at a time with the benchmark runner:
 
-```bash
-docker compose --profile adaptive up --build -d
-# To switch modes, stop the active profile first:
-docker compose --profile adaptive down
-docker compose --profile round-robin up --build -d
-docker compose --profile round-robin down
-docker compose --profile baseline up --build -d
+```powershell
+.\scripts\run_benchmark.ps1 -Mode adaptive
+.\scripts\run_benchmark.ps1 -Mode round-robin
+.\scripts\run_benchmark.ps1 -Mode baseline
 ```
 
-Stop the current profile with `docker compose --profile <name> down` before starting another. Always specify exactly one profile. In `baseline`, the producer publishes directly to `tasks.shared` and all workers consume that queue; neither dispatcher starts. Results are still published to `tasks.results`.
+Each invocation builds the required images, stops task-processing services from previous profiles, and starts exactly one strategy with three fresh workers. RabbitMQ, Prometheus and Grafana stay available. A unique `EXPERIMENT_ID` prefixes every task, calibration and result queue, so unfinished tasks and calibration measurements from past runs cannot enter the next run. Existing queues and volumes are retained. Use `-NoBuild` to reuse images after they have been built from the current sources.
+
+Producer waits until all three workers have finished calibration and subscribed to their queues; routed modes also wait for their dispatcher. It then publishes the pool once, with no artificial arrival delay, and waits for all unique task IDs to complete. Its restart policy is disabled so a finished experiment is not replayed automatically. In `baseline`, producer publishes directly to the shared queue; neither dispatcher starts.
+
+The producer receives completion notifications through its own temporary reply queue, leaving the adaptive scheduler's completion consumer independent. Each report in `results/<experiment_id>.json` contains the mode, workload fingerprint, expected/completed task counts, elapsed seconds, throughput, counts per worker, and per-task checksums and timings. `elapsed_seconds` measures from the first publish attempt until producer receives the final completion notification, after that worker has acknowledged its task. Calibration and container startup are excluded; routing, input generation, computation, CPU throttling and completion delivery are included. A timeout or missing completion marks the report `failed` and the runner exits with an error.
+
+Worker capacity is limited by Docker CPU quotas: worker 1 gets at most `1.0` CPU, worker 2 `0.5`, and worker 3 `0.25`. These are the same limits in all three modes. Worker computation contains no artificial sleep. CPU quotas cap available processor time; they do not reserve dedicated cores. Because matrix multiplication is single-threaded, increasing a worker's limit above one CPU will not speed up that computation. Docker Desktop must have enough CPU capacity for the workers plus RabbitMQ, the dispatcher and monitoring.
+
+Override the limits in `.env` when needed, keeping them identical between strategy comparisons:
+
+```dotenv
+WORKER1_CPUS=1.0
+WORKER2_CPUS=0.5
+WORKER3_CPUS=0.25
+```
+
+Worker calibration runs real matrix multiplications for at least two seconds and at least three repetitions, spanning multiple CPU quota periods. Both `compute_ms` and `elapsed_ms` are wall-clock multiplication times and include CPU throttling. Run the benchmark script again to recreate workers with the new quotas; after changing C++ sources, keep image building enabled.
+
+Review completed runs:
+
+```powershell
+Get-ChildItem results/*.json | ForEach-Object {
+    Get-Content -Raw $_.FullName | ConvertFrom-Json
+} | Select-Object mode, status, expected, completed, elapsed_seconds, tasks_per_second |
+    Format-Table -AutoSize
+```
+
+Compare runs with the same workload fingerprint, worker settings and arrival interval, and repeat each mode several times. The default benchmark stores checksums instead of full result matrices (`WORKER_SEND_FULL_RESULT=false`). Prometheus/Grafana counters remain available for observing progress; the JSON report supplies the final experiment measurement.
+
+To create another pool, Python requires no extra packages:
+
+```powershell
+py scripts/generate_workload.py --count 2000 --seed 2026 --min-size 100 --max-size 500 --output workloads/pool-2000.jsonl
+.\scripts\run_benchmark.ps1 -Mode baseline -Workload workloads/pool-2000.jsonl
+```
+
+The generator refuses to overwrite an existing pool. `-IntervalMs 100` gives a fixed 100 ms arrival interval; the default `0` sends the finite pool as quickly as possible. `-TimeoutSeconds 3600` sets the maximum measured run duration; the separate readiness timeout defaults to 300 seconds.
 
 Prometheus is available at `http://localhost:9090`. Grafana is available at `http://localhost:3000` with Prometheus preconfigured as its default data source. On a fresh Grafana volume, sign in with `admin` / `admin` and change the password when prompted. Each worker exposes `/metrics` on port 9100 inside the Compose network. The counter `optotech_worker_tasks_completed_total{worker_id="1"}` (and similarly for workers 2 and 3) increases after the worker acknowledges a completed task. In Prometheus or Grafana Explore, use:
 

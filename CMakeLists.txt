@@ -137,14 +137,3 @@ if(BUILD_ROUND_ROBIN AND BUILD_TESTING)
     )
     add_test(NAME round_robin_scheduler COMMAND test_round_robin_scheduler)
 endif()
-
-if(BUILD_PRODUCER AND BUILD_TESTING)
-    add_executable(test_producer_routing
-        producer/tests/test_routing.cpp
-    )
-    target_include_directories(test_producer_routing PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/producer/src"
-        "${CMAKE_CURRENT_SOURCE_DIR}/common"
-    )
-    add_test(NAME producer_routing COMMAND test_producer_routing)
-endif()

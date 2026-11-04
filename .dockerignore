@@ -10,3 +10,5 @@ CMakeFiles*
 .git/
 .vs/
 *.user
+results/
+__pycache__/

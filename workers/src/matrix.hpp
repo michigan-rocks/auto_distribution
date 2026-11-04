@@ -3,10 +3,27 @@
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
+#include <random>
+#include <utility>
 
 namespace worker {
 
 using Matrix = std::vector<std::vector<std::int64_t>>;
+
+inline std::pair<Matrix, Matrix> generateInputs(int size, std::uint32_t seed) {
+    std::mt19937 generator(seed);
+    Matrix a(size, std::vector<std::int64_t>(size));
+    Matrix b(size, std::vector<std::int64_t>(size));
+    for (int row = 0; row < size; ++row) {
+        for (int column = 0; column < size; ++column) {
+            // Use the engine directly: uniform_int_distribution may differ
+            // between standard library implementations.
+            a[row][column] = generator() % 10;
+            b[row][column] = generator() % 10;
+        }
+    }
+    return {std::move(a), std::move(b)};
+}
 
 // Deliberately single-threaded. Identical work on every worker makes
 // execution timings comparable, and this access pattern is cache-friendly.

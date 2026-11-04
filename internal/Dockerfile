@@ -34,6 +34,7 @@ RUN cmake -S . -B build \
         -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake \
         -DVCPKG_TARGET_TRIPLET=x64-linux-dynamic \
         -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=OFF \
         -DBUILD_PRODUCER=OFF \
         -DBUILD_WORKERS=OFF \
     && cmake --build build --target internal -j"$(nproc)"

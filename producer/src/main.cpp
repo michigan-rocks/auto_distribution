@@ -3,6 +3,7 @@
 #include <string>
 
 #include "routing.hpp"
+#include "workload.hpp"
 #include "queue.cpp"
 
 int main() {
@@ -13,7 +14,13 @@ int main() {
         );
         auto channel = connectRabbitMQ();
         createQueue(channel, target_queue);
-        publishRandomTasks(channel, target_queue);
+        const char* workload = std::getenv("PRODUCER_WORKLOAD");
+        if (workload && *workload) {
+            producer::runWorkload(channel, target_queue,
+                                 mode ? mode : "adaptive", workload);
+        } else {
+            publishRandomTasks(channel, target_queue);
+        }
 
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

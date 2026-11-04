@@ -20,7 +20,7 @@ auto connectRabbitMQ() {
 
     auto channel = AmqpClient::Channel::Create(
         host,
-        5672,
+        std::getenv("RABBITMQ_PORT") ? std::stoi(std::getenv("RABBITMQ_PORT")) : 5672,
         user,
         password
     );

@@ -11,10 +11,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <utility>
 
 using Json = nlohmann::json;
@@ -31,6 +31,7 @@ struct Task {
     int size;
     worker::Matrix a;
     worker::Matrix b;
+    std::string experiment_id;
 };
 
 struct WorkResult {
@@ -49,16 +50,6 @@ int envInt(const char* name, int fallback, int min, int max) {
     std::size_t parsed = 0;
     const int number = std::stoi(value, &parsed);
     if (parsed != value.size() || number < min || number > max) {
-        throw std::invalid_argument(std::string("invalid ") + name);
-    }
-    return number;
-}
-
-double envNonnegativeDouble(const char* name, double fallback) {
-    const std::string value = env(name, std::to_string(fallback));
-    std::size_t parsed = 0;
-    const double number = std::stod(value, &parsed);
-    if (parsed != value.size() || !std::isfinite(number) || number < 0.0) {
         throw std::invalid_argument(std::string("invalid ") + name);
     }
     return number;
@@ -90,6 +81,17 @@ Task parseTask(const std::string& body) {
         // Current producer generates 100..500. A modest upper bound prevents
         // accidental resource exhaustion from malformed messages.
         if (size < 1 || size > 1024) throw BadTask("unsupported matrix_size");
+        const auto experiment_id = data.value("experiment_id", std::string{});
+        if (data.contains("seed")) {
+            const auto& seed = data.at("seed");
+            if (!seed.is_number_integer() || seed < 0 ||
+                seed > std::numeric_limits<std::uint32_t>::max()) {
+                throw BadTask("seed must be an unsigned 32-bit integer");
+            }
+            auto inputs = worker::generateInputs(size, seed.get<std::uint32_t>());
+            return Task{id, size, std::move(inputs.first),
+                        std::move(inputs.second), experiment_id};
+        }
         auto a = data.at("matrix_a").get<worker::Matrix>();
         auto b = data.at("matrix_b").get<worker::Matrix>();
         if (a.size() != static_cast<std::size_t>(size) ||
@@ -109,7 +111,7 @@ Task parseTask(const std::string& body) {
                 }
             }
         }
-        return Task{id, size, std::move(a), std::move(b)};
+        return Task{id, size, std::move(a), std::move(b), experiment_id};
     } catch (const Json::exception& e) {
         throw BadTask(std::string("invalid JSON task: ") + e.what());
     }
@@ -119,25 +121,15 @@ double msBetween(Clock::time_point start, Clock::time_point end) {
     return std::chrono::duration<double, std::milli>(end - start).count();
 }
 
-WorkResult execute(const worker::Matrix& a, const worker::Matrix& b,
-                   double delay_ms_at_400) {
+WorkResult execute(const worker::Matrix& a, const worker::Matrix& b) {
     const auto start = Clock::now();
     auto result = worker::multiply(a, b);
-    const auto after_compute = Clock::now();
-
-    const double n = static_cast<double>(a.size());
-    const double factor = (n / 400.0) * (n / 400.0) * (n / 400.0);
-    const double artificial_delay = delay_ms_at_400 * factor;
-    if (artificial_delay > 0) {
-        std::this_thread::sleep_for(
-            std::chrono::duration<double, std::milli>(artificial_delay));
-    }
-    const auto done = Clock::now();
-    return WorkResult{std::move(result), msBetween(start, after_compute),
-                      msBetween(start, done)};
+    const double elapsed = msBetween(start, Clock::now());
+    // Wall time includes time spent throttled by the container's CPU quota.
+    return WorkResult{std::move(result), elapsed, elapsed};
 }
 
-double calibrate(double delay_ms_at_400) {
+double calibrate() {
     constexpr int n = 400;
     std::mt19937 random(2026);
     std::uniform_int_distribution<int> distribution(0, 9);
@@ -151,13 +143,17 @@ double calibrate(double delay_ms_at_400) {
     }
     double total_ms = 0;
     std::int64_t guard = 0;
-    constexpr int repeats = 3;
-    for (int i = 0; i < repeats; ++i) {
-        auto result = execute(a, b, delay_ms_at_400);
+    int repeats = 0;
+    const auto start = Clock::now();
+    // Span many CPU quota periods so the initial available CPU budget
+    // does not make a throttled worker look faster than it is.
+    do {
+        auto result = execute(a, b);
         total_ms += result.elapsed_ms;
         guard ^= worker::checksum(result.matrix);
-    }
-    std::cout << "Calibration guard=" << guard << '\n';
+        ++repeats;
+    } while (repeats < 3 || Clock::now() - start < std::chrono::seconds(2));
+    std::cout << "Calibration samples=" << repeats << " guard=" << guard << '\n';
     return total_ms / repeats;
 }
 
@@ -181,8 +177,6 @@ int main() {
         const int worker_id = envInt("WORKER_ID", 1, 1, 3);
         const int port = envInt("RABBITMQ_PORT", 5672, 1, 65535);
         const int metrics_port = envInt("METRICS_PORT", 9100, 1, 65535);
-        const double delay_ms_at_400 =
-            envNonnegativeDouble("SIMULATED_DELAY_MS_AT_400", 0.0);
         const bool send_full_result = envBool("WORKER_SEND_FULL_RESULT", true);
         const std::string mode = env("WORKER_MODE", "adaptive");
         if (mode != "adaptive" && mode != "baseline") {
@@ -211,7 +205,7 @@ int main() {
         declareDurableQueue(channel, queue_names::completed_tasks);
         declareDurableQueue(channel, queue_names::task_results);
 
-        const double average_ms = calibrate(delay_ms_at_400);
+        const double average_ms = calibrate();
         if (mode == "adaptive") {
             publishJson(channel, queue_names::worker_calibration, Json{
                 {"type", "calibration"}, {"worker_id", worker_id},
@@ -236,25 +230,35 @@ int main() {
 
             // Publish first, acknowledge last. Transient errors propagate and
             // the broker will redeliver this unacknowledged task on disconnect.
-            WorkResult result = execute(task.a, task.b, delay_ms_at_400);
+            WorkResult result = execute(task.a, task.b);
             const auto sum = worker::checksum(result.matrix);
             Json result_event = {
                 {"type", "result"}, {"task_id", task.id},
                 {"worker_id", worker_id}, {"matrix_size", task.size},
+                {"experiment_id", task.experiment_id},
                 {"checksum", sum}
             };
             if (send_full_result) {
                 result_event["matrix_result"] = std::move(result.matrix);
             }
             publishJson(channel, queue_names::task_results, result_event);
-            publishJson(channel, queue_names::completed_tasks, Json{
+            const Json completion_event = {
                 {"type", "completed"}, {"task_id", task.id},
                 {"worker_id", worker_id}, {"matrix_size", task.size},
+                {"experiment_id", task.experiment_id},
                 {"elapsed_ms", result.elapsed_ms},
                 {"compute_ms", result.compute_ms}, {"checksum", sum}
-            });
+            };
+            publishJson(channel, queue_names::completed_tasks, completion_event);
             channel->BasicAck(envelope);
             metrics.recordCompletion();
+            if (envelope->Message()->ReplyToIsSet()) {
+                // The temporary reply queue belongs to this producer run.
+                // A cancelled run must not stop a worker or requeue its task.
+                auto reply = AmqpClient::BasicMessage::Create(completion_event.dump());
+                reply->ContentType("application/json");
+                channel->BasicPublish("", envelope->Message()->ReplyTo(), reply, false);
+            }
             std::cout << "Completed task=" << task.id
                       << " size=" << task.size
                       << " elapsed_ms=" << result.elapsed_ms
