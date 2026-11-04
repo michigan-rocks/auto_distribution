@@ -164,6 +164,13 @@ inline void runWorkload(const AmqpClient::Channel::ptr_t& channel,
                    {"workload", path}, {"workload_fingerprint_fnv1a64", workload.fingerprint},
                    {"expected", workload.tasks.size()}, {"completed", 0}, {"published", 0},
                    {"interval_ms", interval_ms}, {"status", "failed"}};
+    if (report["mode"] == "adaptive") {
+        report["scheduler"] = {
+            {"policy", "fifo-remaining-work-window-v3"},
+            {"max_in_flight_total",
+             integerSetting("ADAPTIVE_DISPATCH_WINDOW", 6, 1, 256)}
+        };
+    }
     std::map<std::string, unsigned> workers{{"1", 0}, {"2", 0}, {"3", 0}};
     Json completions = Json::array();
     std::set<std::uint64_t> completed;

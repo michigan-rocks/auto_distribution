@@ -11,7 +11,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 using Json = nlohmann::json;
 
@@ -191,7 +190,7 @@ void handleCompletion(
             std::cout << "Task " << completed.task_id
                       << " completed by worker "
                       << completed.worker_id << " in "
-                      << completed.elapsed_ms << " ms\n";
+                      << completed.elapsed_ms << " ms" << std::endl;
         } else {
             std::cerr << "Ignoring completion for unknown task "
                       << completed.task_id << '\n';
@@ -214,7 +213,8 @@ int main() {
     try {
         const RabbitConfig config = rabbitConfig();
         const auto channel = connect(config);
-        AdaptiveScheduler scheduler;
+        AdaptiveScheduler scheduler(0.2,
+            envInt("ADAPTIVE_DISPATCH_WINDOW", 6, 1, 256));
 
         declareDurableQueue(channel, queue_names::incoming_tasks);
         declareDurableQueue(channel, queue_names::worker_calibration);
@@ -228,26 +228,36 @@ int main() {
         std::cout << "Dispatcher connected to " << config.host
                   << ':' << config.port << '\n';
         calibrate(channel, scheduler);
-        std::cout << "All workers calibrated\n";
+        std::cout << "All workers calibrated; total dispatch window="
+                  << scheduler.dispatchWindow() << std::endl;
 
-        const std::string task_consumer_tag = channel->BasicConsume(
-            queue_names::incoming_tasks, "", false, false, false, 20
+        // Independent connections let us keep receiving completions while
+        // task consumption is paused because the dispatch window is full.
+        const auto task_channel = connect(config);
+        const std::string task_consumer_tag = task_channel->BasicConsume(
+            queue_names::incoming_tasks, "", false, false, false, 1
         );
         const std::string completion_consumer_tag = channel->BasicConsume(
-            queue_names::completed_tasks, "", false, false, false, 20
+            queue_names::completed_tasks, "", false, false, false,
+            queue_names::worker_count
         );
-        const std::vector<std::string> consumer_tags{
-            task_consumer_tag, completion_consumer_tag
-        };
 
         while (true) {
-            const auto envelope = channel->BasicConsumeMessage(consumer_tags);
-            if (envelope->ConsumerTag() == completion_consumer_tag) {
-                handleCompletion(channel, envelope, scheduler);
+            AmqpClient::Envelope::ptr_t completion;
+            while (channel->BasicConsumeMessage(completion_consumer_tag, completion, 0)) {
+                handleCompletion(channel, completion, scheduler);
+            }
+            if (!scheduler.hasCapacity()) {
+                handleCompletion(channel,
+                    channel->BasicConsumeMessage(completion_consumer_tag), scheduler);
                 continue;
             }
-            if (envelope->ConsumerTag() != task_consumer_tag) {
-                throw std::runtime_error("message from unknown consumer");
+
+            // Prefetch holds at most one unassigned task at the dispatcher;
+            // the rest of the pool stays in the shared incoming queue.
+            AmqpClient::Envelope::ptr_t envelope;
+            if (!task_channel->BasicConsumeMessage(task_consumer_tag, envelope, 10)) {
+                continue;
             }
             TaskDescriptor task;
             try {
@@ -255,25 +265,26 @@ int main() {
             } catch (const InvalidMessage& error) {
                 std::cerr << "Discarding invalid task: "
                           << error.what() << '\n';
-                channel->BasicReject(envelope, false);
+                task_channel->BasicReject(envelope, false);
                 continue;
             }
 
             const auto decision = scheduler.chooseWorker(task.matrix_size);
             const std::string target_queue =
                 queue_names::worker_tasks(decision.workerId);
-            channel->BasicPublish(
+            task_channel->BasicPublish(
                 "", target_queue, envelope->Message(), true
             );
             scheduler.onAssigned(
                 task.id, task.matrix_size, decision.workerId
             );
 
-            channel->BasicAck(envelope);
+            task_channel->BasicAck(envelope);
             std::cout << "Task " << task.id << " routed to "
                       << target_queue << "; predicted execution="
-                      << decision.executionMs << " ms, finish="
-                      << decision.finishMs << " ms\n";
+                      << decision.executionMs << " ms, waiting="
+                      << decision.waitingMs << " ms, finish="
+                      << decision.finishMs << " ms" << std::endl;
         }
     } catch (const std::exception& error) {
         std::cerr << "Dispatcher stopped: " << error.what() << '\n';

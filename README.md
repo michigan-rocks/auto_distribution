@@ -57,7 +57,11 @@ The experimental comparison is planned to include:
 3. **Least Loaded:** tasks assigned using the current known worker backlog.
 4. **Adaptive Scheduling:** tasks assigned using estimates of task execution cost and worker availability.
 
-The adaptive strategy will gather execution statistics over time. Initial tasks will be distributed for **cold-start exploration**, without assuming that any worker is fastest before measurements are available.
+The adaptive dispatcher first calibrates all workers with `400x400` matrix multiplications. It predicts task cost as `msAt400 * (matrix_size / 400)^3` and updates each worker's estimate after completions using EWMA with `alpha=0.2`.
+
+Tasks are considered strictly in incoming FIFO order. For each task, the dispatcher minimizes `estimated remaining work + predicted task duration`. A busy fast worker can be preferred over an idle slow one. Remaining work includes the estimated unfinished part of the first assigned task plus the full predicted costs of queued tasks. The first task's start is approximated locally from assignment or receipt of the preceding completion; time already elapsed is subtracted only from that task, never from tasks still waiting behind it. Costs are recalculated from the current EWMA estimate on every decision.
+
+The default dispatch window contains at most six assigned unfinished tasks across all workers. Admission is limited globally: every assignment still compares all calibrated workers, including busy ones. There is no separate per-worker queue limit that would force dispatch to whichever worker just freed a slot. Override `ADAPTIVE_DISPATCH_WINDOW` in `.env` (1..256) to compare window sizes; reports record `max_in_flight_total` and the policy name `fifo-remaining-work-window-v3`. When the global window is full, the dispatcher waits for a completion. The remaining pool stays in the incoming queue, with at most one extra unassigned message prefetched by the dispatcher. Independent incoming/completion connections keep completion processing available while task dispatch is paused. This remains an online strategy and does not inspect future tasks or reorder the pool. It does not guarantee an improvement over the RabbitMQ baseline.
 
 ## Workload
 
@@ -110,9 +114,17 @@ For comparable experiments on Windows, run one mode at a time with the benchmark
 .\scripts\run_benchmark.ps1 -Mode baseline
 ```
 
-Each invocation builds the required images, stops task-processing services from previous profiles, and starts exactly one strategy with three fresh workers. RabbitMQ, Prometheus and Grafana stay available. A unique `EXPERIMENT_ID` prefixes every task, calibration and result queue, so unfinished tasks and calibration measurements from past runs cannot enter the next run. Existing queues and volumes are retained. Use `-NoBuild` to reuse images after they have been built from the current sources.
+Each invocation builds the required images, removes containers from all three profiles, and starts exactly one strategy with three fresh workers. Runtime data uses the containers' writable disk layers, with no persistent Docker volumes: RabbitMQ stores its database under `/tmp/rabbitmq/mnesia`, Prometheus under `/tmp/prometheus`, and Grafana under `/var/lib/grafana`. Removing containers discards queues, messages, Prometheus history and Grafana users/dashboards/settings; the default Prometheus data source is provisioned again automatically. Small `tmpfs` mounts mask the built-in RabbitMQ/Prometheus image volume paths so Docker does not create anonymous volumes there. The actual message store and TSDB stay on disk. A unique `EXPERIMENT_ID` still identifies the run and its queues. The fixed workload and JSON reports are bind-mounted host files and are retained. Use `-NoBuild` to reuse images after they have been built from the current sources.
 
-Producer waits until all three workers have finished calibration and subscribed to their queues; routed modes also wait for their dispatcher. It then publishes the pool once, with no artificial arrival delay, and waits for all unique task IDs to complete. Its restart policy is disabled so a finished experiment is not replayed automatically. In `baseline`, producer publishes directly to the shared queue; neither dispatcher starts.
+For a complete manual shutdown and reset of this project, use:
+
+```powershell
+docker compose --profile adaptive --profile round-robin --profile baseline down --remove-orphans
+```
+
+The Compose file declares no named data volumes, so `--volumes` is not needed. A restart of the same container keeps its disk layer; `down` followed by `up` creates fresh data. Bind mounts with configuration files, the workload and JSON reports are still needed to connect the containers to the project files. Image layers and build caches are retained by the reset command; they do not contain the runtime RabbitMQ messages or monitoring history. Results from the previous volume-backed setup should be kept separate when comparing benchmark series because the storage layout has changed.
+
+Before starting processing services, the runner waits for RabbitMQ's AMQP listener through the management HTTP health endpoint. This avoids repeatedly launching Erlang CLI VMs during measurements. Producer then waits until all three workers have finished calibration and subscribed to their queues; routed modes also wait for their dispatcher. It publishes the pool once, with no artificial arrival delay, and waits for all unique task IDs to complete. Its restart policy is disabled so a finished experiment is not replayed automatically. In `baseline`, producer publishes directly to the shared queue; neither dispatcher starts.
 
 The producer receives completion notifications through its own temporary reply queue, leaving the adaptive scheduler's completion consumer independent. Each report in `results/<experiment_id>.json` contains the mode, workload fingerprint, expected/completed task counts, elapsed seconds, throughput, counts per worker, and per-task checksums and timings. `elapsed_seconds` measures from the first publish attempt until producer receives the final completion notification, after that worker has acknowledged its task. Calibration and container startup are excluded; routing, input generation, computation, CPU throttling and completion delivery are included. A timeout or missing completion marks the report `failed` and the runner exits with an error.
 

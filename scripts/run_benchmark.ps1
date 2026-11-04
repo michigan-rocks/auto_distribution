@@ -55,22 +55,34 @@ try {
         Invoke-Compose --profile $Mode build @services
     }
 
-    # Stop every task-processing service from previous profiles. Monitoring
-    # and RabbitMQ stay up, and no queues, volumes or old reports are deleted.
-    $allProcessingServices = @('producer', 'producer-baseline', 'dispatcher',
-        'round-robin-dispatcher', 'worker1', 'worker2', 'worker3',
-        'baseline-worker1', 'baseline-worker2', 'baseline-worker3')
-    Invoke-Compose --profile adaptive --profile round-robin --profile baseline stop @allProcessingServices
+    # Runtime databases live in container layers and disappear on down.
+    # The workload and JSON reports are host bind mounts and survive the reset.
+    Write-Host 'Resetting containers and transient broker/monitoring data'
+    Invoke-Compose --profile adaptive --profile round-robin --profile baseline down --remove-orphans
     Invoke-Compose up -d --wait rabbitmq prometheus grafana
     Write-Host "Starting $experimentId using $poolPath"
     Invoke-Compose --profile $Mode up -d --no-deps --force-recreate @services
-    & docker compose --profile $Mode wait $producerService
-    $producerExitCode = $LASTEXITCODE
+    # Include exited containers: producer can finish before we reach this line.
+    $producerContainerIds = @(& docker compose --profile $Mode ps --all --quiet $producerService)
+    if ($LASTEXITCODE -ne 0 -or $producerContainerIds.Count -ne 1) {
+        throw "Cannot find exactly one container for $producerService"
+    }
+    $producerExitStatus = & docker wait $producerContainerIds[0]
+    if ($LASTEXITCODE -ne 0) {
+        throw "Cannot wait for producer container $($producerContainerIds[0])"
+    }
+    $producerExitCode = 0
+    if (-not [int]::TryParse([string]$producerExitStatus, [ref]$producerExitCode)) {
+        throw "Unexpected producer exit status: $producerExitStatus"
+    }
     Invoke-Compose --profile $Mode logs --tail 10 --no-log-prefix $producerService
 
     $reportPath = Join-Path $settings.RESULTS_DIR ($experimentId + '.json')
     if ($producerExitCode -ne 0) {
-        throw "Producer exited with code $producerExitCode; inspect its logs and $reportPath"
+        if (Test-Path -LiteralPath $reportPath) {
+            throw "Producer exited with code $producerExitCode; inspect its logs and $reportPath"
+        }
+        throw "Producer exited with code $producerExitCode before creating a report; inspect the logs above"
     }
     $report = Get-Content -Raw -LiteralPath $reportPath | ConvertFrom-Json
     if ($report.status -ne 'completed' -or $report.completed -ne $report.expected) {

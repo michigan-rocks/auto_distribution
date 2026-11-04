@@ -24,6 +24,7 @@ x-producer-environment: &producer-environment
   PRODUCER_INTERVAL_MS: "${PRODUCER_INTERVAL_MS:-0}"
   BENCHMARK_RESULTS_DIR: /results
   BENCHMARK_TIMEOUT_SECONDS: "${BENCHMARK_TIMEOUT_SECONDS:-3600}"
+  ADAPTIVE_DISPATCH_WINDOW: "${ADAPTIVE_DISPATCH_WINDOW:-6}"
 
 x-worker-common: &worker-common
   build:
@@ -58,13 +59,17 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: user
       RABBITMQ_DEFAULT_PASS: user
+      RABBITMQ_MNESIA_BASE: /tmp/rabbitmq/mnesia
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      test: ["CMD-SHELL", 'wget -q -O /dev/null "http://$${RABBITMQ_DEFAULT_USER}:$${RABBITMQ_DEFAULT_PASS}@127.0.0.1:15672/api/health/checks/protocol-listener/amqp"']
+      interval: 3s
+      timeout: 10s
+      start_period: 10s
+      retries: 20
+    # Mask the image's built-in VOLUME; only the small Erlang cookie lives here.
+    # The actual database stays on disk in the container layer at the path above.
+    tmpfs:
+      - /var/lib/rabbitmq:size=1m
     networks:
       - monitoring
 
@@ -88,11 +93,16 @@ services:
     image: prom/prometheus:v3.8.0
     container_name: prometheus
     restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/tmp/prometheus
     ports:
       - "9090:9090"
     volumes:
       - ./pkg/monitoring/prometeus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+    # Mask the image's built-in VOLUME; TSDB data uses the container layer.
+    tmpfs:
+      - /prometheus:size=1m
     networks:
       - monitoring
 
@@ -105,7 +115,6 @@ services:
     depends_on:
       - prometheus
     volumes:
-      - grafana_data:/var/lib/grafana
       - ./pkg/monitoring/graphana/datasourses.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
     networks:
       - monitoring
@@ -126,6 +135,7 @@ services:
       RABBITMQ_USER: user
       RABBITMQ_PASSWORD: user
       EXPERIMENT_ID: "${EXPERIMENT_ID:-}"
+      ADAPTIVE_DISPATCH_WINDOW: "${ADAPTIVE_DISPATCH_WINDOW:-6}"
     networks:
       - monitoring
 
@@ -209,8 +219,3 @@ services:
 
 networks:
   monitoring:
-
-volumes:
-  grafana_data:
-  prometheus_data:
-  rabbitmq_data:
