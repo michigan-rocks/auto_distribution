@@ -7,3 +7,6 @@ debug.log
 [Oo]bj/
 x64/
 *.user
+
+.vscode/
+build/

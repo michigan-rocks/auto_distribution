@@ -1,3 +1,41 @@
+x-producer-common: &producer-common
+  build:
+    context: .
+    dockerfile: producer/Dockerfile
+  image: task-producer:local
+  restart: unless-stopped
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+  networks:
+    - monitoring
+
+x-producer-environment: &producer-environment
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: user
+  RABBITMQ_PASSWORD: user
+
+x-worker-common: &worker-common
+  build:
+    context: .
+    dockerfile: workers/Dockerfile
+  image: adaptive-task-worker:local
+  restart: unless-stopped
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+  networks:
+    - monitoring
+
+x-worker-environment: &worker-environment
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_USER: user
+  RABBITMQ_PASSWORD: user
+  WORKER_MODE: adaptive
+  WORKER_SEND_FULL_RESULT: "true"
+
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -20,21 +58,19 @@ services:
       - monitoring
 
   producer:
-    build:
-      context: .
-      dockerfile: producer/Dockerfile
+    <<: *producer-common
+    profiles: [adaptive, round-robin]
     container_name: producer
-    restart: unless-stopped
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
     environment:
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: user
-      RABBITMQ_PASSWORD: user
-    networks:
-      - monitoring
+      <<: *producer-environment
+      PRODUCER_MODE: adaptive
+
+  producer-baseline:
+    <<: *producer-common
+    profiles: [baseline]
+    environment:
+      <<: *producer-environment
+      PRODUCER_MODE: baseline
 
   prometheus:
     image: prom/prometheus:v3.8.0
@@ -63,10 +99,12 @@ services:
   #     - monitoring
 
   dispatcher:
+    profiles: [adaptive]
     build:
       context: .
       dockerfile: internal/Dockerfile
     container_name: dispatcher
+    restart: unless-stopped
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -77,6 +115,74 @@ services:
       RABBITMQ_PASSWORD: user
     networks:
       - monitoring
+
+  round-robin-dispatcher:
+    profiles: [round-robin]
+    build:
+      context: .
+      dockerfile: round_robin/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: user
+    networks:
+      - monitoring
+
+  worker1:
+    <<: *worker-common
+    profiles: [adaptive, round-robin]
+    environment:
+      <<: *worker-environment
+      WORKER_ID: "1"
+      SIMULATED_DELAY_MS_AT_400: "0"
+
+  worker2:
+    <<: *worker-common
+    profiles: [adaptive, round-robin]
+    environment:
+      <<: *worker-environment
+      WORKER_ID: "2"
+      SIMULATED_DELAY_MS_AT_400: "250"
+
+  worker3:
+    <<: *worker-common
+    profiles: [adaptive, round-robin]
+    environment:
+      <<: *worker-environment
+      WORKER_ID: "3"
+      SIMULATED_DELAY_MS_AT_400: "600"
+
+  baseline-worker1:
+    <<: *worker-common
+    profiles: [baseline]
+    environment:
+      <<: *worker-environment
+      WORKER_MODE: baseline
+      WORKER_ID: "1"
+      SIMULATED_DELAY_MS_AT_400: "0"
+
+  baseline-worker2:
+    <<: *worker-common
+    profiles: [baseline]
+    environment:
+      <<: *worker-environment
+      WORKER_MODE: baseline
+      WORKER_ID: "2"
+      SIMULATED_DELAY_MS_AT_400: "250"
+
+  baseline-worker3:
+    <<: *worker-common
+    profiles: [baseline]
+    environment:
+      <<: *worker-environment
+      WORKER_MODE: baseline
+      WORKER_ID: "3"
+      SIMULATED_DELAY_MS_AT_400: "600"
 
 networks:
   monitoring:

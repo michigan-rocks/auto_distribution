@@ -203,11 +203,13 @@ int main() {
         declareDurableQueue(channel, queue_names::task_results);
 
         const double average_ms = calibrate(delay_ms_at_400);
-        publishJson(channel, queue_names::worker_calibration, Json{
-            {"type", "calibration"}, {"worker_id", worker_id},
-            {"matrix_size", 400}, {"average_ms", average_ms}
-        });
-        std::cout << "Calibration sent: " << average_ms << " ms\n";
+        if (mode == "adaptive") {
+            publishJson(channel, queue_names::worker_calibration, Json{
+                {"type", "calibration"}, {"worker_id", worker_id},
+                {"matrix_size", 400}, {"average_ms", average_ms}
+            });
+            std::cout << "Calibration sent: " << average_ms << " ms\n";
+        }
 
         // Manual acknowledgements + prefetch=1: one unfinished task at a time.
         const std::string consumer_tag = channel->BasicConsume(

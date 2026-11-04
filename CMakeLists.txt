@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 option(BUILD_PRODUCER "Build Producer" ON)
 option(BUILD_INTERNAL "Build Dispatcher" ON)
 option(BUILD_WORKERS "Build Worker" ON)
+option(BUILD_ROUND_ROBIN "Build Round Robin dispatcher" ON)
 
 project(optotech LANGUAGES CXX)
 
@@ -74,6 +75,24 @@ if(BUILD_INTERNAL)
     )
 endif()
 
+if(BUILD_ROUND_ROBIN)
+    add_executable(round_robin
+        round_robin/src/main.cpp
+    )
+
+    target_include_directories(round_robin PRIVATE
+        "${SIMPLE_AMQP_INCLUDE_DIR}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
+    )
+
+    target_link_libraries(round_robin PRIVATE
+        "${SIMPLE_AMQP_LIBRARY}"
+        rabbitmq::rabbitmq
+        Boost::chrono
+        Boost::system
+    )
+endif()
+
 if(BUILD_WORKERS)
     find_package(nlohmann_json CONFIG REQUIRED)
 
@@ -104,4 +123,26 @@ if(BUILD_INTERNAL AND BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/common"
     )
     add_test(NAME adaptive_scheduler COMMAND test_adaptive_scheduler)
+endif()
+
+if(BUILD_ROUND_ROBIN AND BUILD_TESTING)
+    add_executable(test_round_robin_scheduler
+        round_robin/tests/test_round_robin_scheduler.cpp
+    )
+    target_include_directories(test_round_robin_scheduler PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/round_robin/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
+    )
+    add_test(NAME round_robin_scheduler COMMAND test_round_robin_scheduler)
+endif()
+
+if(BUILD_PRODUCER AND BUILD_TESTING)
+    add_executable(test_producer_routing
+        producer/tests/test_routing.cpp
+    )
+    target_include_directories(test_producer_routing PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/producer/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/common"
+    )
+    add_test(NAME producer_routing COMMAND test_producer_routing)
 endif()

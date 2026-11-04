@@ -1,10 +1,10 @@
 # Adaptive Task Scheduler
 
-An experimental distributed task-processing system built with **C++20** and **RabbitMQ**. The project explores whether an adaptive scheduler can improve task completion times compared with conventional message distribution strategies.
+An experimental distributed task-processing system built with **C++17** and **RabbitMQ**. The project explores whether an adaptive scheduler can improve task completion times compared with conventional message distribution strategies.
 
 This project is being developed as part of a research paper for the **Optotech 2026** conference (Industrial Programming section).
 
-> **Status:** Work in progress. The RabbitMQ-connected producer is the starting point; the dispatcher, workers, and monitoring infrastructure are being developed.
+> **Status:** Work in progress. The producer, workers, adaptive dispatcher, and separate Round Robin dispatcher are implemented. The metrics and strategy comparison are still in development.
 
 ## Research Goal
 
@@ -46,14 +46,14 @@ RabbitMQ: worker-specific queues
 
 ### Baseline mode
 
-To evaluate the algorithm fairly, the same worker implementations will also consume from **one shared RabbitMQ queue** using `prefetch = 1`, with no adaptive dispatcher in the task path.
+In the RabbitMQ baseline, the same worker implementations consume from **one shared RabbitMQ queue** using `prefetch = 1`, with no dispatcher in the task path.
 
 ## Scheduling Strategies
 
 The experimental comparison is planned to include:
 
 1. **RabbitMQ baseline:** shared queue with `prefetch = 1`.
-2. **Round Robin:** tasks assigned to workers in cyclic order.
+2. **Round Robin:** a separate dispatcher assigns tasks to worker queues in cyclic order.
 3. **Least Loaded:** tasks assigned using the current known worker backlog.
 4. **Adaptive Scheduling:** tasks assigned using estimates of task execution cost and worker availability.
 
@@ -91,7 +91,7 @@ Experiments will be repeated with comparable task sequences and worker configura
 
 | Component | Technology |
 | --- | --- |
-| Producer, dispatcher, workers | C++20 |
+| Producer, dispatcher, workers | C++17 |
 | Message broker | RabbitMQ (AMQP 0-9-1) |
 | RabbitMQ C++ client | SimpleAmqpClient |
 | Message format | JSON |
@@ -102,11 +102,18 @@ Experiments will be repeated with comparable task sequences and worker configura
 
 ## Running the Project
 
-The full multi-service setup is **not yet finalized**. Once the Docker Compose configuration is in place, the intended startup command will be:
+Run one strategy at a time. All three workers run in each mode:
 
 ```bash
-docker compose up --build -d
+docker compose --profile adaptive up --build -d
+# To switch modes, stop the active profile first:
+docker compose --profile adaptive down
+docker compose --profile round-robin up --build -d
+docker compose --profile round-robin down
+docker compose --profile baseline up --build -d
 ```
+
+Stop the current profile with `docker compose --profile <name> down` before starting another. Always specify exactly one profile. In `baseline`, the producer publishes directly to `tasks.shared` and all workers consume that queue; neither dispatcher starts. Results are still published to `tasks.results`.
 
 For local C++ development, use the project's CMake configuration:
 
@@ -115,7 +122,7 @@ cmake -S . -B build
 cmake --build build
 ```
 
-Executable names, configuration variables, and service endpoints will be documented as the corresponding components are implemented.
+The Round Robin executable is the CMake target `round_robin`.
 
 ## Reliability Considerations
 

@@ -1,7 +1,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
-#include "queue_names.hpp"
 #include <SimpleAmqpClient/SimpleAmqpClient.h>
 #include <string>
 #include <thread>
@@ -30,9 +29,10 @@ auto connectRabbitMQ() {
     return channel;
 }
 
-void createQueue(AmqpClient::Channel::ptr_t &channel) {
+void createQueue(AmqpClient::Channel::ptr_t &channel,
+                 const std::string& target_queue) {
     channel->DeclareQueue(
-        queue_names::incoming_tasks,
+        target_queue,
         false, // passive
         true,  // durable
         false, // exclusive
@@ -40,23 +40,25 @@ void createQueue(AmqpClient::Channel::ptr_t &channel) {
     );
 }
 
-void publish(const std::string& body, AmqpClient::Channel::ptr_t& channel) {
+void publish(const std::string& body, AmqpClient::Channel::ptr_t& channel,
+             const std::string& target_queue) {
 
     auto message = AmqpClient::BasicMessage::Create(body);
     message->ContentType("application/json");
 
     channel->BasicPublish(
         "",               // Default Exchange
-        queue_names::incoming_tasks, // Routing Key
+        target_queue,     // Routing Key
         message
     );
 }
 
-void publishRandomTasks(AmqpClient::Channel::ptr_t& channel) {
+void publishRandomTasks(AmqpClient::Channel::ptr_t& channel,
+                        const std::string& target_queue) {
 
     while (true) {
         const std::string body = CreateRandomTask();
-        publish(body, channel);
+        publish(body, channel, target_queue);
 
         std::cout << "Task published\n";
 

@@ -1,13 +1,19 @@
 #include <iostream>
+#include <cstdlib>
 #include <string>
 
+#include "routing.hpp"
 #include "queue.cpp"
 
 int main() {
     try {
+        const char* mode = std::getenv("PRODUCER_MODE");
+        const std::string target_queue = producer::queueForMode(
+            mode ? mode : "adaptive"
+        );
         auto channel = connectRabbitMQ();
-        createQueue(channel);
-        publishRandomTasks(channel);
+        createQueue(channel, target_queue);
+        publishRandomTasks(channel, target_queue);
 
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
