@@ -95,6 +95,7 @@ endif()
 
 if(BUILD_WORKERS)
     find_package(nlohmann_json CONFIG REQUIRED)
+    find_package(prometheus-cpp CONFIG REQUIRED)
 
     add_executable(worker
         workers/src/main.cpp
@@ -111,6 +112,7 @@ if(BUILD_WORKERS)
         Boost::chrono
         Boost::system
         nlohmann_json::nlohmann_json
+        prometheus-cpp::pull
     )
 endif()
 

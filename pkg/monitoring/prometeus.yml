@@ -7,3 +7,7 @@ scrape_configs:
     static_configs:
       - targets: ["rabbitmq:15692"]
 
+  - job_name: "workers"
+    static_configs:
+      - targets: ["worker1:9100", "worker2:9100", "worker3:9100"]
+

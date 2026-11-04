@@ -10,6 +10,7 @@ RUN git clone --depth 1 https://github.com/microsoft/vcpkg.git /opt/vcpkg \
     && /opt/vcpkg/vcpkg install \
         simpleamqpclient:x64-linux-dynamic \
         nlohmann-json:x64-linux-dynamic
+RUN /opt/vcpkg/vcpkg install 'prometheus-cpp[pull]:x64-linux-dynamic'
 
 WORKDIR /src
 COPY . .

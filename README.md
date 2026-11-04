@@ -4,7 +4,7 @@ An experimental distributed task-processing system built with **C++17** and **Ra
 
 This project is being developed as part of a research paper for the **Optotech 2026** conference (Industrial Programming section).
 
-> **Status:** Work in progress. The producer, workers, adaptive dispatcher, and separate Round Robin dispatcher are implemented. The metrics and strategy comparison are still in development.
+> **Status:** Work in progress. The producer, workers, adaptive dispatcher, and separate Round Robin dispatcher are implemented. Worker completion counters are exported to Prometheus; the remaining metrics and strategy comparison are still in development.
 
 ## Research Goal
 
@@ -114,6 +114,20 @@ docker compose --profile baseline up --build -d
 ```
 
 Stop the current profile with `docker compose --profile <name> down` before starting another. Always specify exactly one profile. In `baseline`, the producer publishes directly to `tasks.shared` and all workers consume that queue; neither dispatcher starts. Results are still published to `tasks.results`.
+
+Prometheus is available at `http://localhost:9090`. Grafana is available at `http://localhost:3000` with Prometheus preconfigured as its default data source. On a fresh Grafana volume, sign in with `admin` / `admin` and change the password when prompted. Each worker exposes `/metrics` on port 9100 inside the Compose network. The counter `optotech_worker_tasks_completed_total{worker_id="1"}` (and similarly for workers 2 and 3) increases after the worker acknowledges a completed task. In Prometheus or Grafana Explore, use:
+
+```promql
+sum by (worker_id) (optotech_worker_tasks_completed_total)
+```
+
+for the current count per worker, or:
+
+```promql
+sum(optotech_worker_tasks_completed_total)
+```
+
+for the current total. Counters start at zero when a worker process starts, so a restart resets its count. For completed tasks over a time window that may include restarts, use `sum by (worker_id) (increase(optotech_worker_tasks_completed_total[1h]))` or `sum(increase(optotech_worker_tasks_completed_total[1h]))`. These counts include only tasks completed since metrics were enabled.
 
 For local C++ development, use the project's CMake configuration:
 

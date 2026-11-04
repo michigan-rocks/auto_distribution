@@ -1,8 +1,10 @@
 #include "matrix.hpp"
+#include "completion_metrics.hpp"
 #include "queue_names.hpp"
 
 #include <SimpleAmqpClient/SimpleAmqpClient.h>
 #include <nlohmann/json.hpp>
+#include <prometheus/exposer.h>
 
 #include <chrono>
 #include <cmath>
@@ -178,6 +180,7 @@ int main() {
     try {
         const int worker_id = envInt("WORKER_ID", 1, 1, 3);
         const int port = envInt("RABBITMQ_PORT", 5672, 1, 65535);
+        const int metrics_port = envInt("METRICS_PORT", 9100, 1, 65535);
         const double delay_ms_at_400 =
             envNonnegativeDouble("SIMULATED_DELAY_MS_AT_400", 0.0);
         const bool send_full_result = envBool("WORKER_SEND_FULL_RESULT", true);
@@ -192,6 +195,12 @@ int main() {
         const std::string host = env("RABBITMQ_HOST", "localhost");
         const std::string user = env("RABBITMQ_USER", "user");
         const std::string password = env("RABBITMQ_PASSWORD", "user");
+
+        CompletionMetrics metrics(worker_id);
+        prometheus::Exposer metrics_server(
+            "0.0.0.0:" + std::to_string(metrics_port)
+        );
+        metrics_server.RegisterCollectable(metrics.registry());
 
         std::cout << "Worker " << worker_id << " connecting to " << host
                   << ':' << port << " (queue=" << input_queue << ")\n";
@@ -245,6 +254,7 @@ int main() {
                 {"compute_ms", result.compute_ms}, {"checksum", sum}
             });
             channel->BasicAck(envelope);
+            metrics.recordCompletion();
             std::cout << "Completed task=" << task.id
                       << " size=" << task.size
                       << " elapsed_ms=" << result.elapsed_ms

@@ -35,6 +35,7 @@ x-worker-environment: &worker-environment
   RABBITMQ_PASSWORD: user
   WORKER_MODE: adaptive
   WORKER_SEND_FULL_RESULT: "true"
+  METRICS_PORT: "9100"
 
 services:
   rabbitmq:
@@ -84,19 +85,19 @@ services:
     networks:
       - monitoring
 
-  # grafana:
-  #   image: grafana/grafana:12.2.0
-  #   container_name: grafana
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - prometheus
-  #   volumes:
-  #     - grafana_data:/var/lib/grafana
-  #     - ./pkg/monitoring/graphana/datasourses.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
-  #   networks:
-  #     - monitoring
+  grafana:
+    image: grafana/grafana:12.2.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./pkg/monitoring/graphana/datasourses.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    networks:
+      - monitoring
 
   dispatcher:
     profiles: [adaptive]
@@ -160,6 +161,9 @@ services:
   baseline-worker1:
     <<: *worker-common
     profiles: [baseline]
+    networks:
+      monitoring:
+        aliases: [worker1]
     environment:
       <<: *worker-environment
       WORKER_MODE: baseline
@@ -169,6 +173,9 @@ services:
   baseline-worker2:
     <<: *worker-common
     profiles: [baseline]
+    networks:
+      monitoring:
+        aliases: [worker2]
     environment:
       <<: *worker-environment
       WORKER_MODE: baseline
@@ -178,6 +185,9 @@ services:
   baseline-worker3:
     <<: *worker-common
     profiles: [baseline]
+    networks:
+      monitoring:
+        aliases: [worker3]
     environment:
       <<: *worker-environment
       WORKER_MODE: baseline
