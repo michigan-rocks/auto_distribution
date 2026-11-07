@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <prometheus/exposer.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -37,7 +38,16 @@ struct Task {
 struct WorkResult {
     worker::Matrix matrix;
     double compute_ms;
-    double elapsed_ms;
+};
+
+struct CalibrationModel {
+    double cubic_ms_at_400;
+    double quadratic_ms_at_400;
+    double constant_ms;
+
+    double at400() const {
+        return cubic_ms_at_400 + quadratic_ms_at_400 + constant_ms;
+    }
 };
 
 std::string env(const char* name, const std::string& fallback) {
@@ -124,37 +134,87 @@ double msBetween(Clock::time_point start, Clock::time_point end) {
 WorkResult execute(const worker::Matrix& a, const worker::Matrix& b) {
     const auto start = Clock::now();
     auto result = worker::multiply(a, b);
-    const double elapsed = msBetween(start, Clock::now());
+    const double compute_ms = msBetween(start, Clock::now());
     // Wall time includes time spent throttled by the container's CPU quota.
-    return WorkResult{std::move(result), elapsed, elapsed};
+    return WorkResult{std::move(result), compute_ms};
 }
 
-double calibrate() {
-    constexpr int n = 400;
-    std::mt19937 random(2026);
-    std::uniform_int_distribution<int> distribution(0, 9);
-    worker::Matrix a(n, std::vector<std::int64_t>(n));
-    worker::Matrix b(n, std::vector<std::int64_t>(n));
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            a[i][j] = distribution(random);
-            b[i][j] = distribution(random);
-        }
+struct CalibrationSample {
+    double service_ms;
+    double compute_ms;
+    std::int64_t guard;
+};
+
+CalibrationSample calibrationSample(int size, std::uint32_t seed,
+                                    int worker_id, bool send_full_result) {
+    const std::string body = Json{
+        {"task_id", seed}, {"matrix_size", size}, {"seed", seed}
+    }.dump();
+
+    const auto service_start = Clock::now();
+    Task task = parseTask(body);
+    WorkResult result = execute(task.a, task.b);
+    const auto sum = worker::checksum(result.matrix);
+    Json result_event = {
+        {"type", "result"}, {"task_id", task.id},
+        {"worker_id", worker_id}, {"matrix_size", task.size},
+        {"experiment_id", "calibration"}, {"checksum", sum}
+    };
+    if (send_full_result) {
+        result_event["matrix_result"] = std::move(result.matrix);
     }
-    double total_ms = 0;
+    const std::string serialized = result_event.dump();
+    const double service_ms = msBetween(service_start, Clock::now());
+    return CalibrationSample{
+        service_ms,
+        result.compute_ms,
+        sum ^ static_cast<std::int64_t>(serialized.size())
+    };
+}
+
+CalibrationModel calibrate(int worker_id, bool send_full_result) {
+    // A tiny task estimates fixed parsing/serialization overhead. The 400x400
+    // samples split cubic multiplication from quadratic generation, checksum,
+    // and result serialization. Online observations later absorb broker cost.
+    constexpr int fixed_repeats = 100;
+    double fixed_total_ms = 0.0;
     std::int64_t guard = 0;
+    for (int repeat = 0; repeat < fixed_repeats; ++repeat) {
+        const auto sample = calibrationSample(
+            1, static_cast<std::uint32_t>(2026 + repeat),
+            worker_id, send_full_result);
+        fixed_total_ms += sample.service_ms;
+        guard ^= sample.guard;
+    }
+    const double constant_ms = fixed_total_ms / fixed_repeats;
+
+    double total_ms = 0.0;
+    double compute_ms = 0.0;
     int repeats = 0;
     const auto start = Clock::now();
-    // Span many CPU quota periods so the initial available CPU budget
-    // does not make a throttled worker look faster than it is.
+    // Span many CPU quota periods so initial available CPU budget does not
+    // make a throttled worker look faster than it is.
     do {
-        auto result = execute(a, b);
-        total_ms += result.elapsed_ms;
-        guard ^= worker::checksum(result.matrix);
+        const auto sample = calibrationSample(
+            400, static_cast<std::uint32_t>(3026 + repeats),
+            worker_id, send_full_result);
+        total_ms += sample.service_ms;
+        compute_ms += sample.compute_ms;
+        guard ^= sample.guard;
         ++repeats;
     } while (repeats < 3 || Clock::now() - start < std::chrono::seconds(2));
-    std::cout << "Calibration samples=" << repeats << " guard=" << guard << '\n';
-    return total_ms / repeats;
+
+    const double average_total_ms = total_ms / repeats;
+    const double cubic_ms = compute_ms / repeats;
+    const double quadratic_ms = std::max(
+        0.0, average_total_ms - cubic_ms - constant_ms);
+    std::cout << "Calibration samples=" << repeats
+              << " service_ms_at_400=" << average_total_ms
+              << " cubic_ms_at_400=" << cubic_ms
+              << " quadratic_ms_at_400=" << quadratic_ms
+              << " constant_ms=" << constant_ms
+              << " guard=" << guard << '\n';
+    return CalibrationModel{cubic_ms, quadratic_ms, constant_ms};
 }
 
 void declareDurableQueue(const AmqpClient::Channel::ptr_t& channel,
@@ -205,13 +265,19 @@ int main() {
         declareDurableQueue(channel, queue_names::completed_tasks);
         declareDurableQueue(channel, queue_names::task_results);
 
-        const double average_ms = calibrate();
+        const CalibrationModel calibration = calibrate(
+            worker_id, send_full_result);
         if (mode == "adaptive") {
             publishJson(channel, queue_names::worker_calibration, Json{
                 {"type", "calibration"}, {"worker_id", worker_id},
-                {"matrix_size", 400}, {"average_ms", average_ms}
+                {"matrix_size", 400},
+                {"average_ms", calibration.at400()},
+                {"cubic_ms_at_400", calibration.cubic_ms_at_400},
+                {"quadratic_ms_at_400", calibration.quadratic_ms_at_400},
+                {"constant_ms", calibration.constant_ms}
             });
-            std::cout << "Calibration sent: " << average_ms << " ms\n";
+            std::cout << "Full-service calibration sent: "
+                      << calibration.at400() << " ms at 400x400\n";
         }
 
         // Manual acknowledgements + prefetch=1: one unfinished task at a time.
@@ -219,6 +285,7 @@ int main() {
             input_queue, "", false, false, false, 1);
         while (true) {
             const auto envelope = channel->BasicConsumeMessage(consumer_tag);
+            const auto service_start = Clock::now();
             Task task;
             try {
                 task = parseTask(envelope->Message()->Body());
@@ -242,11 +309,15 @@ int main() {
                 result_event["matrix_result"] = std::move(result.matrix);
             }
             publishJson(channel, queue_names::task_results, result_event);
+            // Full worker service time: task parsing/input generation,
+            // multiplication, checksum, result serialization and publication.
+            const double service_ms = msBetween(service_start, Clock::now());
             const Json completion_event = {
                 {"type", "completed"}, {"task_id", task.id},
                 {"worker_id", worker_id}, {"matrix_size", task.size},
                 {"experiment_id", task.experiment_id},
-                {"elapsed_ms", result.elapsed_ms},
+                // Keep elapsed_ms as a compatibility alias for old reports.
+                {"elapsed_ms", service_ms}, {"service_ms", service_ms},
                 {"compute_ms", result.compute_ms}, {"checksum", sum}
             };
             publishJson(channel, queue_names::completed_tasks, completion_event);
@@ -261,7 +332,8 @@ int main() {
             }
             std::cout << "Completed task=" << task.id
                       << " size=" << task.size
-                      << " elapsed_ms=" << result.elapsed_ms
+                      << " service_ms=" << service_ms
+                      << " compute_ms=" << result.compute_ms
                       << " checksum=" << sum << std::endl;
         }
     } catch (const std::exception& e) {

@@ -57,11 +57,11 @@ The experimental comparison is planned to include:
 3. **Least Loaded:** tasks assigned using the current known worker backlog.
 4. **Adaptive Scheduling:** tasks assigned using estimates of task execution cost and worker availability.
 
-The adaptive dispatcher first calibrates all workers with `400x400` matrix multiplications. It predicts task cost as `msAt400 * (matrix_size / 400)^3` and updates each worker's estimate after completions using EWMA with `alpha=0.2`.
+The adaptive dispatcher calibrates each worker with complete local service samples. Its model is `T(n) = cubic_ms_at_400 * (n / 400)^3 + quadratic_ms_at_400 * (n / 400)^2 + constant_ms`: multiplication supplies the cubic component, while input generation, checksumming and result serialization supply the quadratic and constant components. Actual `service_ms` observations update a multiplier for the complete model using EWMA with `alpha=0.2`; this also absorbs worker-specific RabbitMQ publication cost.
 
 Tasks are considered strictly in incoming FIFO order. For each task, the dispatcher minimizes `estimated remaining work + predicted task duration`. A busy fast worker can be preferred over an idle slow one. Remaining work includes the estimated unfinished part of the first assigned task plus the full predicted costs of queued tasks. The first task's start is approximated locally from assignment or receipt of the preceding completion; time already elapsed is subtracted only from that task, never from tasks still waiting behind it. Costs are recalculated from the current EWMA estimate on every decision.
 
-The default dispatch window contains at most six assigned unfinished tasks across all workers. Admission is limited globally: every assignment still compares all calibrated workers, including busy ones. There is no separate per-worker queue limit that would force dispatch to whichever worker just freed a slot. Override `ADAPTIVE_DISPATCH_WINDOW` in `.env` (1..256) to compare window sizes; reports record `max_in_flight_total` and the policy name `fifo-remaining-work-window-v3`. When the global window is full, the dispatcher waits for a completion. The remaining pool stays in the incoming queue, with at most one extra unassigned message prefetched by the dispatcher. Independent incoming/completion connections keep completion processing available while task dispatch is paused. This remains an online strategy and does not inspect future tasks or reorder the pool. It does not guarantee an improvement over the RabbitMQ baseline.
+The default dispatch window contains at most six assigned unfinished tasks across all workers. Admission is limited globally: every assignment still compares all calibrated workers, including busy ones. There is no separate per-worker queue limit that would force dispatch to whichever worker just freed a slot. Override `ADAPTIVE_DISPATCH_WINDOW` in `.env` (1..256) to compare window sizes; reports record `max_in_flight_total` and the policy name `full-service-model-window-v4`. When the global window is full, the dispatcher waits for a completion. The remaining pool stays in the incoming queue, with at most one extra unassigned message prefetched by the dispatcher. Independent incoming/completion connections keep completion processing available while task dispatch is paused. This remains an online strategy and does not inspect future tasks or reorder the pool. It does not guarantee an improvement over the RabbitMQ baseline.
 
 ## Workload
 
@@ -114,6 +114,16 @@ For comparable experiments on Windows, run one mode at a time with the benchmark
 .\scripts\run_benchmark.ps1 -Mode baseline
 ```
 
+Use `-Alpha` to change how strongly the adaptive scheduler weights the newest
+complete service-time observation. For example:
+
+```powershell
+.\scripts\run_benchmark.ps1 -Mode adaptive -Alpha 0.1
+```
+
+The accepted range is `0.001..1.0`; the default is `0.2`. Every adaptive JSON
+report records the selected value as `scheduler.ewma_alpha`.
+
 Each invocation builds the required images, removes containers from all three profiles, and starts exactly one strategy with three fresh workers. Runtime data uses the containers' writable disk layers, with no persistent Docker volumes: RabbitMQ stores its database under `/tmp/rabbitmq/mnesia`, Prometheus under `/tmp/prometheus`, and Grafana under `/var/lib/grafana`. Removing containers discards queues, messages, Prometheus history and Grafana users/dashboards/settings; the default Prometheus data source is provisioned again automatically. Small `tmpfs` mounts mask the built-in RabbitMQ/Prometheus image volume paths so Docker does not create anonymous volumes there. The actual message store and TSDB stay on disk. A unique `EXPERIMENT_ID` still identifies the run and its queues. The fixed workload and JSON reports are bind-mounted host files and are retained. Use `-NoBuild` to reuse images after they have been built from the current sources.
 
 For a complete manual shutdown and reset of this project, use:
@@ -138,7 +148,7 @@ WORKER2_CPUS=0.5
 WORKER3_CPUS=0.25
 ```
 
-Worker calibration runs real matrix multiplications for at least two seconds and at least three repetitions, spanning multiple CPU quota periods. Both `compute_ms` and `elapsed_ms` are wall-clock multiplication times and include CPU throttling. Run the benchmark script again to recreate workers with the new quotas; after changing C++ sources, keep image building enabled.
+Worker calibration runs complete `400x400` local service samples for at least two seconds and at least three repetitions, spanning multiple CPU quota periods. `compute_ms` measures matrix multiplication only. `service_ms` (also written to the legacy `elapsed_ms` field) starts when the worker receives a task and includes JSON parsing, input generation, multiplication, checksumming, result serialization and result publication. Run the benchmark script again to recreate workers with the new quotas; after changing C++ sources, keep image building enabled.
 
 Review completed runs:
 
@@ -159,6 +169,23 @@ py scripts/generate_workload.py --count 2000 --seed 2026 --min-size 100 --max-si
 ```
 
 The generator refuses to overwrite an existing pool. `-IntervalMs 100` gives a fixed 100 ms arrival interval; the default `0` sends the finite pool as quickly as possible. `-TimeoutSeconds 3600` sets the maximum measured run duration; the separate readiness timeout defaults to 300 seconds.
+
+Two deterministic high-variance profiles are checked in for experiments where
+task-size-aware routing should matter. Both contain the same multiset of 96
+small (`100..200`) and 24 heavy (`700..900`) tasks generated with seed 2026;
+only their order differs:
+
+```powershell
+py scripts/generate_workload.py --profile bimodal-shuffled --output workloads/bimodal-shuffled-120.jsonl
+py scripts/generate_workload.py --profile heavy-tail --output workloads/heavy-tail-120.jsonl
+
+.\scripts\run_benchmark.ps1 -Mode adaptive -Alpha 0.05 -Workload workloads/bimodal-shuffled-120.jsonl
+.\scripts\run_benchmark.ps1 -Mode baseline -Workload workloads/bimodal-shuffled-120.jsonl -NoBuild
+```
+
+`bimodal-shuffled` mixes small and heavy tasks deterministically. `heavy-tail`
+places all heavy tasks at the end, exposing end-of-batch stragglers without
+changing the amount of work.
 
 Prometheus is available at `http://localhost:9090`. Grafana is available at `http://localhost:3000` with Prometheus preconfigured as its default data source. On a fresh Grafana volume, sign in with `admin` / `admin` and change the password when prompted. Each worker exposes `/metrics` on port 9100 inside the Compose network. The counter `optotech_worker_tasks_completed_total{worker_id="1"}` (and similarly for workers 2 and 3) increases after the worker acknowledges a completed task. In Prometheus or Grafana Explore, use:
 

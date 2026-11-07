@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -37,6 +38,18 @@ inline int integerSetting(const char* name, int fallback, int minimum, int maxim
     std::size_t parsed = 0;
     const int number = std::stoi(value, &parsed);
     if (parsed != value.size() || number < minimum || number > maximum) {
+        throw std::invalid_argument(std::string("invalid ") + name);
+    }
+    return number;
+}
+
+inline double floatingSetting(const char* name, double fallback,
+                              double minimum, double maximum) {
+    const auto value = setting(name, std::to_string(fallback));
+    std::size_t parsed = 0;
+    const double number = std::stod(value, &parsed);
+    if (parsed != value.size() || !std::isfinite(number) ||
+        number < minimum || number > maximum) {
         throw std::invalid_argument(std::string("invalid ") + name);
     }
     return number;
@@ -166,7 +179,9 @@ inline void runWorkload(const AmqpClient::Channel::ptr_t& channel,
                    {"interval_ms", interval_ms}, {"status", "failed"}};
     if (report["mode"] == "adaptive") {
         report["scheduler"] = {
-            {"policy", "fifo-remaining-work-window-v3"},
+            {"policy", "full-service-model-window-v4"},
+            {"ewma_alpha",
+             floatingSetting("ADAPTIVE_EWMA_ALPHA", 0.2, 0.001, 1.0)},
             {"max_in_flight_total",
              integerSetting("ADAPTIVE_DISPATCH_WINDOW", 6, 1, 256)}
         };

@@ -7,6 +7,8 @@ param(
     [int]$TimeoutSeconds = 3600,
     [ValidateRange(0, 60000)]
     [int]$IntervalMs = 0,
+    [ValidateRange(0.001, 1.0)]
+    [double]$Alpha = 0.2,
     [switch]$NoBuild
 )
 
@@ -37,6 +39,7 @@ try {
         RESULTS_DIR = (Join-Path $projectDirectory 'results')
         BENCHMARK_TIMEOUT_SECONDS = [string]$TimeoutSeconds
         PRODUCER_INTERVAL_MS = [string]$IntervalMs
+        ADAPTIVE_EWMA_ALPHA = $Alpha.ToString([Globalization.CultureInfo]::InvariantCulture)
         WORKER_SEND_FULL_RESULT = 'false'
     }
     foreach ($name in $settings.Keys) {

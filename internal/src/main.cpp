@@ -35,7 +35,7 @@ struct TaskDescriptor {
 struct Completion {
     std::uint64_t task_id;
     int worker_id;
-    double elapsed_ms;
+    double service_ms;
 };
 
 std::string env(const char* name, const std::string& fallback) {
@@ -48,6 +48,17 @@ int envInt(const char* name, int fallback, int min, int max) {
     std::size_t parsed = 0;
     const int number = std::stoi(value, &parsed);
     if (parsed != value.size() || number < min || number > max) {
+        throw std::invalid_argument(std::string("invalid ") + name);
+    }
+    return number;
+}
+
+double envDouble(const char* name, double fallback, double min, double max) {
+    const std::string value = env(name, std::to_string(fallback));
+    std::size_t parsed = 0;
+    const double number = std::stod(value, &parsed);
+    if (parsed != value.size() || !std::isfinite(number) ||
+        number < min || number > max) {
         throw std::invalid_argument(std::string("invalid ") + name);
     }
     return number;
@@ -114,14 +125,14 @@ Completion parseCompletion(const std::string& body) {
         }
         const auto task_id = positiveId(data.at("task_id"), "task_id");
         const int worker_id = data.at("worker_id").get<int>();
-        const double elapsed_ms = data.at("elapsed_ms").get<double>();
+        const double service_ms = data.at("service_ms").get<double>();
         if (worker_id < 1 || worker_id > queue_names::worker_count) {
             throw InvalidMessage("invalid worker_id");
         }
-        if (!std::isfinite(elapsed_ms) || elapsed_ms <= 0.0) {
-            throw InvalidMessage("invalid elapsed_ms");
+        if (!std::isfinite(service_ms) || service_ms <= 0.0) {
+            throw InvalidMessage("invalid service_ms");
         }
-        return Completion{task_id, worker_id, elapsed_ms};
+        return Completion{task_id, worker_id, service_ms};
     } catch (const Json::exception& error) {
         throw InvalidMessage(
             std::string("invalid completion event: ") + error.what()
@@ -147,21 +158,33 @@ void calibrate(
             const int worker_id = data.at("worker_id").get<int>();
             const int matrix_size = data.at("matrix_size").get<int>();
             const double average_ms = data.at("average_ms").get<double>();
+            const double cubic_ms_at_400 =
+                data.at("cubic_ms_at_400").get<double>();
+            const double quadratic_ms_at_400 =
+                data.at("quadratic_ms_at_400").get<double>();
+            const double constant_ms = data.at("constant_ms").get<double>();
 
             if (type != "calibration" ||
                 worker_id < 1 || worker_id > queue_names::worker_count ||
                 matrix_size != 400 || !std::isfinite(average_ms) ||
-                average_ms <= 0.0) {
+                average_ms <= 0.0 || !std::isfinite(cubic_ms_at_400) ||
+                cubic_ms_at_400 < 0.0 ||
+                !std::isfinite(quadratic_ms_at_400) ||
+                quadratic_ms_at_400 < 0.0 ||
+                !std::isfinite(constant_ms) || constant_ms < 0.0) {
                 throw InvalidMessage("invalid calibration values");
             }
 
-            scheduler.calibrateWorker(worker_id, average_ms);
+            scheduler.calibrateWorker(
+                worker_id, cubic_ms_at_400,
+                quadratic_ms_at_400, constant_ms);
             if (!ready[worker_id - 1]) {
                 ready[worker_id - 1] = true;
                 ++calibrated_count;
             }
             std::cout << "Worker " << worker_id
-                      << " calibrated: " << average_ms << " ms\n";
+                      << " calibrated for full service: " << average_ms
+                      << " ms at 400x400\n";
         } catch (const std::exception& error) {
             std::cerr << "Discarding invalid calibration: "
                       << error.what() << '\n';
@@ -184,13 +207,14 @@ void handleCompletion(
         const bool known_task = scheduler.onCompleted(
             completed.task_id,
             completed.worker_id,
-            completed.elapsed_ms
+            completed.service_ms
         );
         if (known_task) {
             std::cout << "Task " << completed.task_id
                       << " completed by worker "
                       << completed.worker_id << " in "
-                      << completed.elapsed_ms << " ms" << std::endl;
+                      << completed.service_ms
+                      << " service ms" << std::endl;
         } else {
             std::cerr << "Ignoring completion for unknown task "
                       << completed.task_id << '\n';
@@ -213,7 +237,9 @@ int main() {
     try {
         const RabbitConfig config = rabbitConfig();
         const auto channel = connect(config);
-        AdaptiveScheduler scheduler(0.2,
+        const double ewma_alpha = envDouble(
+            "ADAPTIVE_EWMA_ALPHA", 0.2, 0.001, 1.0);
+        AdaptiveScheduler scheduler(ewma_alpha,
             envInt("ADAPTIVE_DISPATCH_WINDOW", 6, 1, 256));
 
         declareDurableQueue(channel, queue_names::incoming_tasks);
@@ -229,7 +255,8 @@ int main() {
                   << ':' << config.port << '\n';
         calibrate(channel, scheduler);
         std::cout << "All workers calibrated; total dispatch window="
-                  << scheduler.dispatchWindow() << std::endl;
+                  << scheduler.dispatchWindow()
+                  << ", EWMA alpha=" << ewma_alpha << std::endl;
 
         // Independent connections let us keep receiving completions while
         // task consumption is paused because the dispatch window is full.

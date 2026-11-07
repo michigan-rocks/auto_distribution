@@ -25,6 +25,7 @@ x-producer-environment: &producer-environment
   BENCHMARK_RESULTS_DIR: /results
   BENCHMARK_TIMEOUT_SECONDS: "${BENCHMARK_TIMEOUT_SECONDS:-3600}"
   ADAPTIVE_DISPATCH_WINDOW: "${ADAPTIVE_DISPATCH_WINDOW:-6}"
+  ADAPTIVE_EWMA_ALPHA: "${ADAPTIVE_EWMA_ALPHA:-0.2}"
 
 x-worker-common: &worker-common
   build:
@@ -136,6 +137,7 @@ services:
       RABBITMQ_PASSWORD: user
       EXPERIMENT_ID: "${EXPERIMENT_ID:-}"
       ADAPTIVE_DISPATCH_WINDOW: "${ADAPTIVE_DISPATCH_WINDOW:-6}"
+      ADAPTIVE_EWMA_ALPHA: "${ADAPTIVE_EWMA_ALPHA:-0.2}"
     networks:
       - monitoring
 
