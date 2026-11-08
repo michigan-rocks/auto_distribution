@@ -1,0 +1,124 @@
+Baseline (rabbit-mq native)
+
+1. BENCHMARK COMPLETE: 1000 tasks in 13.678927569 seconds; workers={"1":435,"2":380,"3":185}; report=/results/baseline-20261108-114748-b7cd243a.json
+Mode: baseline; tasks: 1000; seconds: 13.678927569
+Workers: {"1":435,"2":380,"3":185}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 13.43763614 seconds; workers={"1":455,"2":368,"3":177}; report=/results/baseline-20261108-115053-965a84a7.json
+Mode: baseline; tasks: 1000; seconds: 13.43763614
+Workers: {"1":455,"2":368,"3":177}
+
+3. BENCHMARK COMPLETE: 1000 tasks in 13.265695564 seconds; workers={"1":440,"2":380,"3":180}; report=/results/baseline-20261108-115222-93f46740.json
+Mode: baseline; tasks: 1000; seconds: 13.265695564
+Workers: {"1":440,"2":380,"3":180}
+
+4. BENCHMARK COMPLETE: 1000 tasks in 13.778840027 seconds; workers={"1":459,"2":359,"3":182}; report=/results/baseline-20261108-115318-7b2b8bc1.json
+Mode: baseline; tasks: 1000; seconds: 13.778840027
+Workers: {"1":459,"2":359,"3":182}
+
+5. BENCHMARK COMPLETE: 1000 tasks in 13.822266806 seconds; workers={"1":465,"2":350,"3":185}; report=/results/baseline-20261108-115501-fc13867f.json
+Mode: baseline; tasks: 1000; seconds: 13.822266806
+Workers: {"1":465,"2":350,"3":185}
+
+
+
+
+Round-robin
+
+1. BENCHMARK COMPLETE: 1000 tasks in 31.990540565 seconds; workers={"1":334,"2":333,"3":333}; report=/results/round-robin-20261108-115812-8a2e8833.json
+Mode: round-robin; tasks: 1000; seconds: 31.990540565
+Workers: {"1":334,"2":333,"3":333}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 30.786458572 seconds; workers={"1":334,"2":333,"3":333}; report=/results/round-robin-20261108-115946-d38bc814.json
+Mode: round-robin; tasks: 1000; seconds: 30.786458572
+Workers: {"1":334,"2":333,"3":333}
+
+3. BENCHMARK COMPLETE: 1000 tasks in 29.434062532 seconds; workers={"1":334,"2":333,"3":333}; report=/results/round-robin-20261108-120101-10e507d2.json
+Mode: round-robin; tasks: 1000; seconds: 29.434062532
+Workers: {"1":334,"2":333,"3":333}
+
+4. !!!!!!!!!! BENCHMARK COMPLETE !!!!!!!!!!!!: 1000 tasks in 80.277052346 seconds; workers={"1":334,"2":333,"3":333}; report=/results/round-robin-20261108-120400-e3114c93.json
+Mode: round-robin; tasks: 1000; seconds: 80.277052346
+Workers: {"1":334,"2":333,"3":333}
+!!!!caused by the hard task for the weakest worker!!!!
+
+5. BENCHMARK COMPLETE: 1000 tasks in 31.309853209 seconds; workers={"1":334,"2":333,"3":333}; report=/results/round-robin-20261108-120714-ecb9f7c2.json
+Mode: round-robin; tasks: 1000; seconds: 31.309853209
+Workers: {"1":334,"2":333,"3":333}
+
+6. BENCHMARK COMPLETE: 1000 tasks in 33.941039103 seconds; workers={"1":334,"2":333,"3":333}; report=/results/round-robin-20261108-120833-5014403f.json
+Mode: round-robin; tasks: 1000; seconds: 33.941039103
+Workers: {"1":334,"2":333,"3":333}
+
+
+
+
+Adaptive
+
+
+Alpha 0.01
+
+1. BENCHMARK COMPLETE: 1000 tasks in 12.492299084 seconds; workers={"1":288,"2":364,"3":348}; report=/results/adaptive-20261108-122439-97382bb3.json
+Mode: adaptive; tasks: 1000; seconds: 12.492299084
+Workers: {"1":288,"2":364,"3":348}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 12.279289849 seconds; workers={"1":287,"2":354,"3":359}; report=/results/adaptive-20261108-122544-e235613d.json
+Mode: adaptive; tasks: 1000; seconds: 12.279289849
+Workers: {"1":287,"2":354,"3":359}
+
+Alpha 0.1
+
+1. BENCHMARK COMPLETE: 1000 tasks in 13.046721374 seconds; workers={"1":339,"2":310,"3":351}; report=/results/adaptive-20261108-121132-635c21f6.json
+Mode: adaptive; tasks: 1000; seconds: 13.046721374
+Workers: {"1":339,"2":310,"3":351}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 12.887762156 seconds; workers={"1":334,"2":313,"3":353}; report=/results/adaptive-20261108-121234-95f40a3b.json
+Mode: adaptive; tasks: 1000; seconds: 12.887762156
+Workers: {"1":334,"2":313,"3":353}
+
+3. BENCHMARK COMPLETE: 1000 tasks in 12.502188993 seconds; workers={"1":323,"2":338,"3":339}; report=/results/adaptive-20261108-121314-1b7c2348.json
+Mode: adaptive; tasks: 1000; seconds: 12.502188993
+Workers: {"1":323,"2":338,"3":339}
+
+Alpha 0.2
+
+1. BENCHMARK COMPLETE: 1000 tasks in 12.781381508 seconds; workers={"1":352,"2":339,"3":309}; report=/results/adaptive-20261108-121420-9fc14c6d.json
+Mode: adaptive; tasks: 1000; seconds: 12.781381508
+Workers: {"1":352,"2":339,"3":309}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 12.857327436 seconds; workers={"1":356,"2":338,"3":306}; report=/results/adaptive-20261108-121518-598bc8a6.json
+Mode: adaptive; tasks: 1000; seconds: 12.857327436
+Workers: {"1":356,"2":338,"3":306}
+
+3. BENCHMARK COMPLETE: 1000 tasks in 12.965912579 seconds; workers={"1":340,"2":353,"3":307}; report=/results/adaptive-20261108-121609-6151b6ef.json
+Mode: adaptive; tasks: 1000; seconds: 12.965912579
+Workers: {"1":340,"2":353,"3":307}
+
+Alpha 0.5
+
+1. BENCHMARK COMPLETE: 1000 tasks in 13.383715824 seconds; workers={"1":370,"2":356,"3":274}; report=/results/adaptive-20261108-121711-2087cda4.json
+Mode: adaptive; tasks: 1000; seconds: 13.383715824
+Workers: {"1":370,"2":356,"3":274}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 13.285663909 seconds; workers={"1":375,"2":361,"3":264}; report=/results/adaptive-20261108-121804-2b59cdf9.json
+Mode: adaptive; tasks: 1000; seconds: 13.285663909
+Workers: {"1":375,"2":361,"3":264}
+
+3. BENCHMARK COMPLETE: 1000 tasks in 13.219700896 seconds; workers={"1":361,"2":341,"3":298}; report=/results/adaptive-20261108-122011-4da58cd8.json
+Mode: adaptive; tasks: 1000; seconds: 13.219700896
+Workers: {"1":361,"2":341,"3":298}
+
+Alpha 0.7
+
+1. BENCHMARK COMPLETE: 1000 tasks in 13.259007294 seconds; workers={"1":388,"2":342,"3":270}; report=/results/adaptive-20261108-122125-151124a7.json
+Mode: adaptive; tasks: 1000; seconds: 13.259007294
+Workers: {"1":388,"2":342,"3":270}
+
+2. BENCHMARK COMPLETE: 1000 tasks in 13.570748365 seconds; workers={"1":383,"2":340,"3":277}; report=/results/adaptive-20261108-122225-e5bdbd8b.json
+Mode: adaptive; tasks: 1000; seconds: 13.570748365
+Workers: {"1":383,"2":340,"3":277}
+
+3. BENCHMARK COMPLETE: 1000 tasks in 13.411529645 seconds; workers={"1":419,"2":326,"3":255}; report=/results/adaptive-20261108-122331-1af20785.json
+Mode: adaptive; tasks: 1000; seconds: 13.411529645
+Workers: {"1":419,"2":326,"3":255}
+
