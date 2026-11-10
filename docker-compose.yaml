@@ -90,10 +90,26 @@ services:
       PRODUCER_MODE: baseline
       SCHEDULER_MODE: baseline
 
+  benchmark-exporter:
+    image: python:3.13-alpine
+    container_name: benchmark-exporter
+    restart: unless-stopped
+    command: ["python", "/app/benchmark_exporter.py"]
+    environment:
+      BENCHMARK_RESULTS_DIR: /results
+      METRICS_PORT: "9200"
+    volumes:
+      - ./pkg/monitoring/benchmark_exporter.py:/app/benchmark_exporter.py:ro
+      - ./results:/results:ro
+    networks:
+      - monitoring
+
   prometheus:
     image: prom/prometheus:v3.8.0
     container_name: prometheus
     restart: unless-stopped
+    depends_on:
+      - benchmark-exporter
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/tmp/prometheus
@@ -117,6 +133,8 @@ services:
       - prometheus
     volumes:
       - ./pkg/monitoring/graphana/datasourses.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./pkg/monitoring/graphana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./pkg/monitoring/graphana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - monitoring
 
