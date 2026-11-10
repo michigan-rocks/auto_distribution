@@ -1,0 +1,127 @@
+<section id="benchmark-validation-comparison" data-viz-composition>
+  <div data-viz-container></div>
+  <script type="application/json" data-viz-chart>
+    {
+      "charts": [
+        {
+          "id": "default-validation",
+          "title": "default.jsonl — duration distribution",
+          "description": "10 runs per configuration. Adaptive w=6: 10 Nov; reference runs: 9 Nov. Lower is better.",
+          "height": 360,
+          "spec": {
+            "type": "boxPlot",
+            "x": "Configuration",
+            "y": "Seconds",
+            "yLabel": "Duration (s)",
+            "whiskers": "minMax"
+          },
+          "columns": ["Configuration", "Seconds"],
+          "rows": [
+            ["Baseline", 8.085657395],
+            ["Baseline", 8.265714111],
+            ["Baseline", 8.267158634],
+            ["Baseline", 8.27806027],
+            ["Baseline", 8.330516968],
+            ["Baseline", 8.378485216],
+            ["Baseline", 8.453795533],
+            ["Baseline", 8.467728997],
+            ["Baseline", 8.57404217],
+            ["Baseline", 8.627547779],
+            ["Adaptive α=.05, w=24", 8.124185162],
+            ["Adaptive α=.05, w=24", 8.187132846],
+            ["Adaptive α=.05, w=24", 8.278724852],
+            ["Adaptive α=.05, w=24", 8.289833593],
+            ["Adaptive α=.05, w=24", 8.319788202],
+            ["Adaptive α=.05, w=24", 8.403966434],
+            ["Adaptive α=.05, w=24", 8.452830712],
+            ["Adaptive α=.05, w=24", 8.659942027],
+            ["Adaptive α=.05, w=24", 8.699645101],
+            ["Adaptive α=.05, w=24", 9.419102924],
+            ["Adaptive α=.05, w=6", 8.417686442],
+            ["Adaptive α=.05, w=6", 8.509729192],
+            ["Adaptive α=.05, w=6", 8.597073686],
+            ["Adaptive α=.05, w=6", 8.604714011],
+            ["Adaptive α=.05, w=6", 8.630498684],
+            ["Adaptive α=.05, w=6", 8.761468778],
+            ["Adaptive α=.05, w=6", 9.443695761],
+            ["Adaptive α=.05, w=6", 11.007758382],
+            ["Adaptive α=.05, w=6", 11.285498952],
+            ["Adaptive α=.05, w=6", 11.700366665],
+            ["Round Robin", 17.394745876],
+            ["Round Robin", 18.06503671],
+            ["Round Robin", 18.088795567],
+            ["Round Robin", 18.093956645],
+            ["Round Robin", 18.107902934],
+            ["Round Robin", 18.129123871],
+            ["Round Robin", 18.249987205],
+            ["Round Robin", 18.27967023],
+            ["Round Robin", 18.293191339],
+            ["Round Robin", 18.439715315]
+          ]
+        },
+        {
+          "id": "heavy-tail-validation",
+          "title": "heavy-tail-120.jsonl — duration distribution",
+          "description": "10 runs per configuration. Adaptive w=6: 10 Nov; reference runs: 9 Nov. Lower is better.",
+          "height": 360,
+          "spec": {
+            "type": "boxPlot",
+            "x": "Configuration",
+            "y": "Seconds",
+            "yLabel": "Duration (s)",
+            "whiskers": "minMax"
+          },
+          "columns": ["Configuration", "Seconds"],
+          "rows": [
+            ["Baseline", 2.30800322],
+            ["Baseline", 2.462334758],
+            ["Baseline", 2.550721102],
+            ["Baseline", 2.558534425],
+            ["Baseline", 2.571464819],
+            ["Baseline", 2.589973496],
+            ["Baseline", 2.672684687],
+            ["Baseline", 2.704235275],
+            ["Baseline", 2.82700942],
+            ["Baseline", 2.846712598],
+            ["Adaptive α=.05, w=24", 3.363926814],
+            ["Adaptive α=.05, w=24", 3.391014911],
+            ["Adaptive α=.05, w=24", 3.443779327],
+            ["Adaptive α=.05, w=24", 3.457769106],
+            ["Adaptive α=.05, w=24", 3.525409095],
+            ["Adaptive α=.05, w=24", 3.764726354],
+            ["Adaptive α=.05, w=24", 3.82455678],
+            ["Adaptive α=.05, w=24", 4.146509464],
+            ["Adaptive α=.05, w=24", 4.86256158],
+            ["Adaptive α=.05, w=24", 7.267275797],
+            ["Adaptive α=.05, w=6", 2.432178177],
+            ["Adaptive α=.05, w=6", 2.478683235],
+            ["Adaptive α=.05, w=6", 2.497676565],
+            ["Adaptive α=.05, w=6", 2.525719287],
+            ["Adaptive α=.05, w=6", 2.652247684],
+            ["Adaptive α=.05, w=6", 2.730637193],
+            ["Adaptive α=.05, w=6", 2.824442859],
+            ["Adaptive α=.05, w=6", 2.874538733],
+            ["Adaptive α=.05, w=6", 3.575986097],
+            ["Adaptive α=.05, w=6", 4.023109328],
+            ["Round Robin", 4.806761346],
+            ["Round Robin", 4.858368608],
+            ["Round Robin", 4.865618598],
+            ["Round Robin", 4.916144224],
+            ["Round Robin", 4.920434009],
+            ["Round Robin", 4.986065499],
+            ["Round Robin", 5.018039206],
+            ["Round Robin", 5.02200781],
+            ["Round Robin", 5.555127369],
+            ["Round Robin", 7.701179787]
+          ]
+        }
+      ]
+    }
+  </script>
+</section>
+<script type="module">
+  import { mountChart } from "https://persistent.oaistatic.com/plugins/visualize/charts/1.1.6/element.js";
+  const root = document.getElementById("benchmark-validation-comparison");
+  const config = JSON.parse(root.querySelector("[data-viz-chart]").textContent);
+  mountChart(root.querySelector("[data-viz-container]"), config);
+</script>

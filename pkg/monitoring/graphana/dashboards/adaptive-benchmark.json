@@ -177,6 +177,195 @@
       ],
       "title": "Average benchmark time by alpha/window",
       "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Mean of 10 runs per configuration. Adaptive w=6: 10 Nov; reference runs: 9 Nov. Lower is better.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "decimals": 3,
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 17},
+      "id": 5,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"baseline\",status=\"completed\",workload=\"default.jsonl\",run_date=\"20261109\"})",
+          "instant": true,
+          "legendFormat": "Baseline",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"adaptive\",status=\"completed\",workload=\"default.jsonl\",run_date=\"20261109\",alpha=\"0.05\",window=\"24\"})",
+          "instant": true,
+          "legendFormat": "Adaptive alpha=.05, window=24",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"adaptive\",status=\"completed\",workload=\"default.jsonl\",run_date=\"20261110\",alpha=\"0.05\",window=\"6\"})",
+          "instant": true,
+          "legendFormat": "Adaptive alpha=.05, window=6",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"round-robin\",status=\"completed\",workload=\"default.jsonl\",run_date=\"20261109\"})",
+          "instant": true,
+          "legendFormat": "Round Robin",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Validation comparison — default.jsonl",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Mean of 10 runs per configuration. Adaptive w=6: 10 Nov; reference runs: 9 Nov. Lower is better.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "decimals": 3,
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 17},
+      "id": 6,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"baseline\",status=\"completed\",workload=\"heavy-tail-120.jsonl\",run_date=\"20261109\"})",
+          "instant": true,
+          "legendFormat": "Baseline",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"adaptive\",status=\"completed\",workload=\"heavy-tail-120.jsonl\",run_date=\"20261109\",alpha=\"0.05\",window=\"24\"})",
+          "instant": true,
+          "legendFormat": "Adaptive alpha=.05, window=24",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"adaptive\",status=\"completed\",workload=\"heavy-tail-120.jsonl\",run_date=\"20261110\",alpha=\"0.05\",window=\"6\"})",
+          "instant": true,
+          "legendFormat": "Adaptive alpha=.05, window=6",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"round-robin\",status=\"completed\",workload=\"heavy-tail-120.jsonl\",run_date=\"20261109\"})",
+          "instant": true,
+          "legendFormat": "Round Robin",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Validation comparison — heavy-tail-120.jsonl",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Mean of 10 runs per configuration. Adaptive w=6: 10 Nov; reference runs: 9 Nov. Lower is better.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "decimals": 3,
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 25},
+      "id": 7,
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"baseline\",status=\"completed\",workload=\"bimodal-shuffled-120.jsonl\",run_date=\"20261109\"})",
+          "instant": true,
+          "legendFormat": "Baseline — 10 runs",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"adaptive\",status=\"completed\",workload=\"bimodal-shuffled-120.jsonl\",run_date=\"20261109\",alpha=\"0.05\",window=\"24\"})",
+          "instant": true,
+          "legendFormat": "Adaptive alpha=.05, window=24 — 10 runs",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"adaptive\",status=\"completed\",workload=\"bimodal-shuffled-120.jsonl\",run_date=\"20261110\",alpha=\"0.05\",window=\"6\"})",
+          "instant": true,
+          "legendFormat": "Adaptive alpha=.05, window=6 — 10 runs",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(benchmark_elapsed_seconds{mode=\"round-robin\",status=\"completed\",workload=\"bimodal-shuffled-120.jsonl\",run_date=\"20261109\"})",
+          "instant": true,
+          "legendFormat": "Round Robin — 10 runs",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Tuning comparison — bimodal-shuffled-120.jsonl",
+      "type": "bargauge"
     }
   ],
   "refresh": "1s",
@@ -186,7 +375,7 @@
     "list": [
       {
         "allValue": ".*",
-        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "current": {"selected": true, "text": "bimodal-shuffled-120.jsonl", "value": "bimodal-shuffled-120.jsonl"},
         "datasource": {"type": "prometheus", "uid": "prometheus"},
         "definition": "label_values(benchmark_elapsed_seconds, workload)",
         "includeAll": true,
@@ -201,7 +390,7 @@
       },
       {
         "allValue": ".*",
-        "current": {"selected": true, "text": "All", "value": "$__all"},
+        "current": {"selected": true, "text": "20261110", "value": "20261110"},
         "datasource": {"type": "prometheus", "uid": "prometheus"},
         "definition": "label_values(benchmark_elapsed_seconds, run_date)",
         "includeAll": true,
@@ -221,6 +410,6 @@
   "timezone": "browser",
   "title": "Adaptive benchmark observability",
   "uid": "adaptive-benchmark",
-  "version": 1,
+  "version": 4,
   "weekStart": ""
 }
